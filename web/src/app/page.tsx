@@ -16,18 +16,16 @@ import {
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
 import { io, Socket } from "socket.io-client";
+import type { components } from "@/lib/api/schema";
 
-type AuthUser = {
-  id: number;
-  email: string;
-  first_name?: string | null;
-  last_name?: string | null;
-};
-
-type AuthResponse = {
-  api_token: string;
-  user: AuthUser;
-};
+type ApiSchemas = components["schemas"];
+type AuthUser = ApiSchemas["UserResponse"];
+type AuthResponse = ApiSchemas["AuthResponse"];
+type SignupRequest = ApiSchemas["SignupRequest"];
+type LoginRequest = ApiSchemas["LoginRequest"];
+type ApiError = ApiSchemas["ErrorResponseSchema"];
+type AgenticChatMessageRequest = ApiSchemas["AgenticChatMessageRequest"];
+type AgenticChatMessageResponse = ApiSchemas["AgenticChatMessageResponse"];
 
 type RealtimeMessage = {
   message: {
@@ -113,7 +111,7 @@ export default function Home() {
   async function submitAuth(e: FormEvent) {
     e.preventDefault();
     const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
-    const body =
+    const body: LoginRequest | SignupRequest =
       mode === "login"
         ? { email, password }
         : { email, password, first_name: firstName || undefined, last_name: lastName || undefined };
@@ -124,7 +122,7 @@ export default function Home() {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const err = await response.json();
+      const err = (await response.json()) as Partial<ApiError>;
       setStatus(`Auth error: ${err.error ?? response.statusText}`);
       return;
     }
@@ -141,16 +139,21 @@ export default function Home() {
     setInput("");
     setMessages((prev) => [...prev, { id: `${Date.now()}-user`, role: "user", content }]);
 
+    const payload: AgenticChatMessageRequest = { message: content };
     const response = await fetch(`${API_BASE_URL}/agentic-chat/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ message: content }),
+      body: JSON.stringify(payload),
     });
+    if (response.ok) {
+      await response.json() as AgenticChatMessageResponse;
+      return;
+    }
     if (!response.ok) {
-      const err = await response.json();
+      const err = (await response.json()) as Partial<ApiError>;
       setStatus(`Chat error: ${err.error ?? response.statusText}`);
     }
   }
