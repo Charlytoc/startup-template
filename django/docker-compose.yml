@@ -1,0 +1,117 @@
+name: startup-stack
+
+services:
+  postgres:
+    image: "postgres:17"
+    container_name: "db-container"
+    restart: "unless-stopped"
+    environment:
+      - "POSTGRES_HOST_AUTH_METHOD=trust"
+      - "POSTGRES_DB=${POSTGRES_DB:-startup-db}"
+      - "POSTGRES_USER=${POSTGRES_USER:-startup-user}"
+      - "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-startup_password}"
+    volumes:
+      - "${PWD}/data/postgres:/var/lib/postgresql/data"
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready --username ${POSTGRES_USER:-startup-user} --dbname ${POSTGRES_DB:-startup-db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    container_name: "redis-container"
+    restart: "unless-stopped"
+    ports:
+      - "6379:6379"
+    volumes:
+      - "redis_data:/data"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  django:
+    container_name: "django-container"
+    env_file: .env
+    build:
+      context: ./
+      dockerfile: ./deployment/local/Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    command: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    container_name: "celery-container"
+    env_file: .env
+    build:
+      context: ./
+      dockerfile: ./deployment/local/Dockerfile
+    command: watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config worker -l debug --concurrency=4
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+
+  celery-beat:
+    container_name: "celery-beat-container"
+    env_file: .env
+    build:
+      context: ./
+      dockerfile: ./deployment/local/Dockerfile
+    command: watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config beat -l debug --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+
+  flower:
+    container_name: "flower-container"
+    env_file: .env
+    build:
+      context: ./
+      dockerfile: ./deployment/local/Dockerfile
+    command: celery -A config flower --port=5555 --address=0.0.0.0
+    ports:
+      - "5555:5555"
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - celery
+
+  realtime:
+    container_name: "realtime-container"
+    build:
+      context: ../realtime
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "3001:3001"
+    volumes:
+      - ../realtime:/app
+      - /app/node_modules
+    command: npm run dev
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:

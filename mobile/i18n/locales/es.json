@@ -1,0 +1,143 @@
+{
+  "common": {
+    "next": "Siguiente",
+    "back": "Atrás",
+    "continue": "Continuar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "done": "Listo",
+    "complete": "Completar",
+    "optional": "Opcional"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "profile": "Perfil",
+    "languages": "Mis Idiomas",
+    "learn": "Panel de Aprendizaje",
+    "progress": "Progreso",
+    "settings": "Configuración",
+    "help": "Ayuda y Soporte",
+    "logout": "Cerrar Sesión"
+  },
+  "auth": {
+    "welcomeBack": "Bienvenido de vuelta",
+    "createAccount": "Crear Cuenta",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "signIn": "Iniciar Sesión",
+    "signUp": "Registrarse",
+    "signInLink": "¿Ya tienes una cuenta? Iniciar Sesión",
+    "signUpLink": "¿No tienes una cuenta? Registrarse",
+    "enterEmail": "Ingresa tu correo electrónico",
+    "enterPassword": "Ingresa tu contraseña",
+    "confirmPasswordPlaceholder": "Confirma tu contraseña",
+    "enterFirstName": "Ingresa tu nombre",
+    "enterLastName": "Ingresa tu apellido",
+    "emailRequired": "El correo electrónico y la contraseña son requeridos",
+    "passwordMismatch": "Las contraseñas no coinciden",
+    "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+    "loginFailed": "Error al iniciar sesión. Por favor, inténtalo de nuevo.",
+    "signupFailed": "Error al registrarse. Por favor, inténtalo de nuevo."
+  },
+  "profile": {
+    "setup": "Configuración del Perfil",
+    "nativeLanguage": "¿Cuál es tu idioma nativo?",
+    "nativeLanguageSubtitle": "Esto nos ayuda a personalizar tu experiencia de aprendizaje",
+    "aboutYou": "Cuéntanos sobre ti",
+    "aboutYouSubtitle": "Esto nos ayuda a crear un mejor plan de aprendizaje para ti",
+    "profession": "Profesión",
+    "professionPlaceholder": "ej., Desarrollador de Software, Profesor, Estudiante",
+    "dailyLearningTime": "Tiempo Diario de Aprendizaje",
+    "almostDone": "¡Casi terminamos! 🎉",
+    "almostDoneSubtitle": "Configuremos tus preferencias de aprendizaje",
+    "completeSetup": "Completar Configuración",
+    "minutes": "minutos",
+    "min": "min"
+  },
+  "languages": {
+    "english": "Inglés",
+    "spanish": "Español",
+    "german": "Alemán",
+    "french": "Francés",
+    "italian": "Italiano",
+    "portuguese": "Portugués",
+    "russian": "Ruso",
+    "japanese": "Japonés",
+    "korean": "Coreano",
+    "chinese": "Chino",
+    "arabic": "Árabe",
+    "hindi": "Hindi"
+  },
+  "home": {
+    "welcomeBack": "¡Bienvenido de vuelta, {{name}}!",
+    "readyToLearn": "¿Listo para continuar aprendiendo?",
+    "getStarted": "Comenzar",
+    "startLearning": "Empezar a Aprender",
+    "signIn": "Iniciar Sesión",
+    "howItWorks": "Cómo funciona",
+    "features": "Características",
+    "dailyReminder": "Solo 5-10 minutos al día marcan la diferencia.",
+    "joinThousands": "Únete a miles de estudiantes mejorando sus habilidades lingüísticas diariamente",
+    "createFreeAccount": "Crear Cuenta Gratuita",
+    "testApiConnection": "Probar Conexión API",
+    "clearTokenLogout": "Limpiar Token y Cerrar Sesión",
+    "checkingSetup": "Verificando tu configuración..."
+  },
+  "howItWorks": {
+    "placement": {
+      "title": "Prueba de Nivel",
+      "description": "Comienza con una evaluación rápida para calibrar la dificultad."
+    },
+    "micro": {
+      "title": "Micro‑lecciones",
+      "description": "Aprende con actividades enfocadas de 5-10 minutos cada día."
+    },
+    "tutor": {
+      "title": "Tutor interactivo",
+      "description": "Chatea, obtén retroalimentación instantánea y practica en contexto."
+    }
+  },
+  "features": {
+    "flashcards": {
+      "title": "Tarjetas espaciadas",
+      "description": "Retén vocabulario con repetición espaciada adaptativa."
+    },
+    "quizzes": {
+      "title": "Cuestionarios inteligentes",
+      "description": "Enfócate en tus debilidades con desafíos pequeños."
+    },
+    "roadmap": {
+      "title": "Ruta adaptativa",
+      "description": "Tu camino de aprendizaje evoluciona con tu progreso."
+    },
+    "tracking": {
+      "title": "Seguimiento de progreso",
+      "description": "Ve rachas, objetivos e insights detallados de habilidades."
+    }
+  },
+  "learning": {
+    "learningPath": "Ruta de Aprendizaje",
+    "completeLevelsToProgress": "Completa los niveles para progresar en {{language}}",
+    "modules": "Módulos",
+    "activities": "actividades",
+    "hours": "h",
+    "modulesCount": "módulos",
+    "keepItUp": "¡Sigue así! ✨",
+    "blockedMessages": [
+      "¡Termina el módulo anterior para desbloquear este!",
+      "¡Hey, no tan rápido! Primero termina el anterior!",
+      "¡Paso a paso! Completa el módulo anterior primero.",
+      "¡Casi ahí! Termina el módulo anterior para continuar.",
+      "¡La paciencia es clave! Completa el módulo anterior primero.",
+      "¡Lo estás haciendo genial! Solo termina el módulo anterior primero.",
+      "¡Despacio y con buena letra! Completa el anterior primero.",
+      "¡Casi listo! Solo completa el módulo anterior primero."
+    ]
+  }
+}

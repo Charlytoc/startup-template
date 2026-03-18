@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o errtrace
+set -o nounset
+set -o pipefail
+
+function _error() {
+  echo "****** Failed ******" >&2
+  if [ "$1" != "0" ]; then
+    echo "Exit code of $1 occurred on line number $2"
+  fi
+}
+trap '_error $? $LINENO' ERR
+
+function _finish() {
+  echo "-- $0 completed --" >&2
+}
+trap _finish EXIT
+
+function help() {
+  echo "$0 <task> <args>"
+  echo ""
+  echo "Development Tasks:"
+  echo "  setup-env         Set up environment variables and install dependencies"
+  echo "  setup-django      Initialize Django (migrate, create superuser)"
+  echo "  dev [--skip-build,-sb] Start local development environment"
+  echo "  down              Stop development environment"
+  echo "  down-clean        Stop and clean development environment (removes volumes)"
+  echo "  migrate [app migration] Run Django migrations"
+  echo "  reset-db-seq      Reset database sequences"
+  echo "  psql              Connect to PostgreSQL database"
+  echo ""
+  echo "Examples:"
+  echo "  ./taskfile.sh dev                    # Start development with build"
+  echo "  ./taskfile.sh dev --skip-build       # Start development without build"
+  echo "  ./taskfile.sh migrate                # Make and apply migrations"
+  echo "  ./taskfile.sh migrate core 0038      # Roll back to specific migration"
+}
+
+function setup-env() {
+  if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "Copied .env.sample to .env"
+    echo "Please ask for sensitive environment variable values"
+  fi
+
+#   brew install python@3.12
+
+#   rm -rf venv
+#   python3.12 -m venv venv
+#   source venv/bin/activate
+
+#   pip3 install -r requirements-dev.txt
+#   pre-commit install
+
+#   pip3 install -r requirements.txt
+}
+
+function setup-django() {
+  migrate
+  reset-db-seq
+  # Create default organization first
+  docker compose -f docker-compose.yml exec django python manage.py shell -c "
+from core.models import Organization
+org, created = Organization.objects.get_or_create(
+    name='Startup',
+    domain='startup.local',
+    defaults={'status': 'active'}
+)
+print(f'Organization: {\"Created\" if created else \"Already exists\"} - {org.name}')
+"
+  # Create superuser with organization
+  docker compose -f docker-compose.yml exec django python manage.py shell -c "
+from core.models import User, Organization
+from django.contrib.auth.hashers import make_password
+
+org = Organization.objects.get(name='Startup')
+user, created = User.objects.get_or_create(
+    email='admin@localhost.com',
+    defaults={
+        'password': make_password('p'),
+        'is_staff': True,
+        'is_superuser': True,
+        'organization': org
+    }
+)
+if created:
+    print(f'Superuser created: {user.email}')
+else:
+    print(f'Superuser already exists: {user.email}')
+"
+}
+
+function dev() {
+  local skip_build_flag="--build"
+  local should_remove_images=true
+  
+  for arg in "$@"; do
+    if [[ "$arg" == "--skip-build" || "$arg" == "-sb" ]]; then
+      skip_build_flag=""
+      should_remove_images=false
+      break
+    fi
+  done
+  
+  if [ "$should_remove_images" = true ]; then
+    # Stop containers and remove only images from this stack
+    docker compose -f docker-compose.yml down --rmi local --remove-orphans
+  else
+    # Only stop containers
+    docker compose -f docker-compose.yml down --remove-orphans
+  fi
+
+  # Start the stack with new configuration
+  docker compose -f docker-compose.yml up -d --force-recreate $skip_build_flag
+
+  docker compose -f docker-compose.yml exec django python manage.py migrate
+}
+
+function down() {
+  echo "🛑 Stopping development environment..."
+  docker compose -f docker-compose.yml down
+  echo "✅ Development environment stopped!"
+}
+
+function down-clean() {
+  echo "🧹 Stopping and cleaning development environment..."
+  docker compose -f docker-compose.yml down -v --rmi all --remove-orphans
+  echo "✅ Development environment stopped and cleaned!"
+}
+
+function migrate() {
+  if [ "$#" -eq 0 ]; then
+    # Default behavior: make and apply migrations
+    docker compose -f docker-compose.yml exec django python manage.py makemigrations
+    docker compose -f docker-compose.yml exec django python manage.py migrate
+  elif [ "$#" -eq 2 ]; then
+    # Undo migration: migrate to specific number
+    docker compose -f docker-compose.yml exec django python manage.py migrate "$1" "$2"
+  else
+    echo "Usage:"
+    echo "  ./taskfile.sh migrate                    # Make and apply all migrations"
+    echo "  ./taskfile.sh migrate <app> <migration>  # Migrate to specific migration"
+    echo "Example:"
+    echo "  ./taskfile.sh migrate core 0038         # Roll back to migration 0038"
+    return 1
+  fi
+}
+
+function reset-db-seq() {
+  docker compose -f docker-compose.yml exec django bash -c "python manage.py sqlsequencereset core auth admin | python manage.py dbshell"
+}
+
+function psql() {
+  docker compose -f docker-compose.yml exec postgres psql -U "${POSTGRES_USER:-startup-user}" -d "${POSTGRES_DB:-startup-db}"
+}
+
+run() {
+    echo "Running Django command: $*"
+    docker compose -f docker-compose.yml exec django python manage.py "$@"
+}
+
+TIMEFORMAT="Task completed in %3lR"
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    time help
+else
+    time "${@:-help}"
+fi

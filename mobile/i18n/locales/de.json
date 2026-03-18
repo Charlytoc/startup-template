@@ -1,0 +1,124 @@
+{
+  "common": {
+    "next": "Weiter",
+    "back": "Zurück",
+    "continue": "Fortfahren",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "loading": "Lädt...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "done": "Fertig",
+    "complete": "Abschließen",
+    "optional": "Optional"
+  },
+  "navigation": {
+    "home": "Startseite",
+    "profile": "Profil",
+    "languages": "Meine Sprachen",
+    "learn": "Lern-Dashboard",
+    "progress": "Fortschritt",
+    "settings": "Einstellungen",
+    "help": "Hilfe & Support",
+    "logout": "Abmelden"
+  },
+  "auth": {
+    "welcomeBack": "Willkommen zurück",
+    "createAccount": "Konto erstellen",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "signInLink": "Haben Sie bereits ein Konto? Anmelden",
+    "signUpLink": "Noch kein Konto? Registrieren",
+    "enterEmail": "E-Mail eingeben",
+    "enterPassword": "Passwort eingeben",
+    "confirmPasswordPlaceholder": "Passwort bestätigen",
+    "enterFirstName": "Vorname eingeben",
+    "enterLastName": "Nachname eingeben",
+    "emailRequired": "E-Mail und Passwort sind erforderlich",
+    "passwordMismatch": "Passwörter stimmen nicht überein",
+    "passwordTooShort": "Passwort muss mindestens 6 Zeichen haben",
+    "loginFailed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "signupFailed": "Registrierung fehlgeschlagen. Bitte versuchen Sie es erneut."
+  },
+  "profile": {
+    "setup": "Profil-Einrichtung",
+    "nativeLanguage": "Was ist Ihre Muttersprache?",
+    "nativeLanguageSubtitle": "Das hilft uns, Ihre Lernerfahrung zu personalisieren",
+    "aboutYou": "Erzählen Sie uns von sich",
+    "aboutYouSubtitle": "Das hilft uns, einen besseren Lernplan für Sie zu erstellen",
+    "profession": "Beruf",
+    "professionPlaceholder": "z.B. Softwareentwickler, Lehrer, Student",
+    "dailyLearningTime": "Tägliche Lernzeit",
+    "almostDone": "Fast geschafft! 🎉",
+    "almostDoneSubtitle": "Lassen Sie uns Ihre Lernpräferenzen einrichten",
+    "completeSetup": "Einrichtung abschließen",
+    "minutes": "Minuten",
+    "min": "Min"
+  },
+  "languages": {
+    "english": "Englisch",
+    "spanish": "Spanisch",
+    "french": "Französisch",
+    "german": "Deutsch",
+    "italian": "Italienisch",
+    "portuguese": "Portugiesisch",
+    "russian": "Russisch",
+    "japanese": "Japanisch",
+    "korean": "Koreanisch",
+    "chinese": "Chinesisch",
+    "arabic": "Arabisch",
+    "hindi": "Hindi"
+  },
+  "home": {
+    "welcomeBack": "Willkommen zurück, {{name}}!",
+    "readyToLearn": "Bereit, weiter zu lernen?",
+    "getStarted": "Loslegen",
+    "startLearning": "Lernen beginnen",
+    "signIn": "Anmelden",
+    "howItWorks": "So funktioniert es",
+    "features": "Funktionen",
+    "dailyReminder": "Nur 5-10 Minuten täglich machen einen Unterschied.",
+    "joinThousands": "Schließen Sie sich Tausenden von Lernenden an, die täglich ihre Sprachkenntnisse verbessern",
+    "createFreeAccount": "Kostenloses Konto erstellen",
+    "testApiConnection": "API-Verbindung testen",
+    "clearTokenLogout": "Token löschen & Abmelden",
+    "checkingSetup": "Ihre Einrichtung wird überprüft..."
+  },
+  "howItWorks": {
+    "placement": {
+      "title": "Einstufungstest",
+      "description": "Beginnen Sie mit einer schnellen Bewertung, um den Schwierigkeitsgrad zu kalibrieren."
+    },
+    "micro": {
+      "title": "Mikro-Lektionen",
+      "description": "Lernen Sie mit fokussierten Aktivitäten von 5-10 Minuten jeden Tag."
+    },
+    "tutor": {
+      "title": "Interaktiver Tutor",
+      "description": "Chatten Sie, erhalten Sie sofortiges Feedback und üben Sie im Kontext."
+    }
+  },
+  "features": {
+    "flashcards": {
+      "title": "Abstands-Lernkarten",
+      "description": "Behalten Sie Vokabeln mit adaptiver Abstands-Wiederholung."
+    },
+    "quizzes": {
+      "title": "Intelligente Quiz",
+      "description": "Konzentrieren Sie sich auf Ihre Schwächen mit kleinen Herausforderungen."
+    },
+    "roadmap": {
+      "title": "Adaptive Lernroute",
+      "description": "Ihr Lernweg entwickelt sich mit Ihrem Fortschritt."
+    },
+    "tracking": {
+      "title": "Fortschrittsverfolgung",
+      "description": "Sehen Sie Streaks, Ziele und detaillierte Fähigkeits-Einblicke."
+    }
+  }
+}

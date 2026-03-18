@@ -1,0 +1,143 @@
+{
+  "common": {
+    "next": "Next",
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "save": "Save",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "done": "Done",
+    "complete": "Complete",
+    "optional": "Optional"
+  },
+  "navigation": {
+    "home": "Home",
+    "profile": "Profile",
+    "languages": "My Languages",
+    "learn": "Learning Dashboard",
+    "progress": "Progress",
+    "settings": "Settings",
+    "help": "Help & Support",
+    "logout": "Logout"
+  },
+  "auth": {
+    "welcomeBack": "Welcome Back",
+    "createAccount": "Create Account",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signInLink": "Already have an account? Sign In",
+    "signUpLink": "Don't have an account? Sign Up",
+    "enterEmail": "Enter your email",
+    "enterPassword": "Enter your password",
+    "confirmPasswordPlaceholder": "Confirm your password",
+    "enterFirstName": "Enter your first name",
+    "enterLastName": "Enter your last name",
+    "emailRequired": "Email and password are required",
+    "passwordMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "loginFailed": "Login failed. Please try again.",
+    "signupFailed": "Signup failed. Please try again."
+  },
+  "profile": {
+    "setup": "Profile Setup",
+    "nativeLanguage": "What's your native language?",
+    "nativeLanguageSubtitle": "This helps us personalize your learning experience",
+    "aboutYou": "Tell us about yourself",
+    "aboutYouSubtitle": "This helps us create a better learning plan for you",
+    "profession": "Profession",
+    "professionPlaceholder": "e.g., Software Developer, Teacher, Student",
+    "dailyLearningTime": "Daily Learning Time",
+    "almostDone": "Almost done! 🎉",
+    "almostDoneSubtitle": "Let's set up your learning preferences",
+    "completeSetup": "Complete Setup",
+    "minutes": "minutes",
+    "min": "min"
+  },
+  "languages": {
+    "english": "English",
+    "spanish": "Spanish",
+    "german": "German",
+    "french": "French",
+    "italian": "Italian",
+    "portuguese": "Portuguese",
+    "russian": "Russian",
+    "japanese": "Japanese",
+    "korean": "Korean",
+    "chinese": "Chinese",
+    "arabic": "Arabic",
+    "hindi": "Hindi"
+  },
+  "home": {
+    "welcomeBack": "Welcome back, {{name}}!",
+    "readyToLearn": "Ready to continue learning?",
+    "getStarted": "Get Started",
+    "startLearning": "Start Learning",
+    "signIn": "Sign In",
+    "howItWorks": "How it works",
+    "features": "Features",
+    "dailyReminder": "Just 5–10 minutes a day makes a difference.",
+    "joinThousands": "Join thousands of learners improving their language skills daily",
+    "createFreeAccount": "Create Free Account",
+    "testApiConnection": "Test API Connection",
+    "clearTokenLogout": "Clear Token & Logout",
+    "checkingSetup": "Checking your setup..."
+  },
+  "howItWorks": {
+    "placement": {
+      "title": "Level Test",
+      "description": "Start with a quick assessment to calibrate difficulty."
+    },
+    "micro": {
+      "title": "Micro‑lessons",
+      "description": "Learn with 5–10 minute focused activities each day."
+    },
+    "tutor": {
+      "title": "Interactive tutor",
+      "description": "Chat, get instant feedback, and practice in context."
+    }
+  },
+  "features": {
+    "flashcards": {
+      "title": "Spaced flashcards",
+      "description": "Retain vocabulary with adaptive spaced repetition."
+    },
+    "quizzes": {
+      "title": "Smart quizzes",
+      "description": "Target your weaknesses with bite‑sized challenges."
+    },
+    "roadmap": {
+      "title": "Adaptive roadmap",
+      "description": "Your learning path evolves with your progress."
+    },
+    "tracking": {
+      "title": "Progress tracking",
+      "description": "See streaks, goals, and detailed skill insights."
+    }
+  },
+  "learning": {
+    "learningPath": "Learning Path",
+    "completeLevelsToProgress": "Complete levels to progress in {{language}}",
+    "modules": "Modules",
+    "activities": "activities",
+    "hours": "h",
+    "modulesCount": "modules",
+    "keepItUp": "Keep it up! ✨",
+    "blockedMessages": [
+      "Finish the previous module to unlock this one!",
+      "Hey, not so fast! Complete the previous one first!",
+      "One step at a time! Complete the previous module first.",
+      "Almost there! Finish the previous module to continue.",
+      "Patience is key! Complete the previous module first.",
+      "You're doing great! Just finish the previous module first.",
+      "Slow and steady wins the race! Complete the previous one first.",
+      "Almost ready! Just complete the previous module first."
+    ]
+  }
+}
