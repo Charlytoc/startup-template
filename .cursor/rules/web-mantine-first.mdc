@@ -1,0 +1,38 @@
+---
+description: Mantine-first UI rule for web template
+globs: web/**/*
+alwaysApply: false
+---
+
+# Mantine First in `web/`
+
+- Use Mantine components, props, spacing, typography, and theming primitives before writing custom CSS.
+- Prefer `Stack`, `Group`, `Container`, `Paper`, `Text`, `Title`, `Button`, `TextInput`, etc., instead of custom wrappers.
+- Prefer Mantine style APIs (`c`, `bg`, `p`, `m`, `radius`, `w`, `h`, `visibleFrom`, `hiddenFrom`, `style` prop) over `.css` files.
+- Add custom CSS only when Mantine cannot reasonably express the requirement (for example, very specific animation/keyframes or third-party integration edge cases).
+- If custom CSS is needed:
+  - keep it minimal and component-scoped;
+  - document in a short comment why Mantine-only was not enough;
+  - avoid global overrides unless strictly required.
+- Keep dark/light behavior compatible with Mantine color scheme (`MantineProvider` + `ColorSchemeScript`).
+
+## Quick Examples
+
+```tsx
+// Preferred (Mantine-first)
+<Paper withBorder radius="md" p="md">
+  <Stack gap="sm">
+    <Title order={3}>Agentic Chat</Title>
+    <TextInput placeholder="Write a message..." />
+    <Button>Send</Button>
+  </Stack>
+</Paper>
+```
+
+```tsx
+// Avoid by default (custom CSS-first)
+<div className="chatCard">
+  <h3>Agentic Chat</h3>
+  <input className="chatInput" />
+</div>
+```
