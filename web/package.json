@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-api-types": "node ./scripts/generate-schema.mjs http://localhost:8000/api/openapi.json"
+    "generate-api-types": "node ./scripts/generate-schema.mjs"
   },
   "dependencies": {
     "@mantine/core": "^8.3.18",

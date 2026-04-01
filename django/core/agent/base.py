@@ -139,6 +139,12 @@ class Agent:
             raise Exception("❌ OpenAI service not available")
 
         try:
+            # Build a lookup dict: tool name -> callable
+            tool_registry: Dict[str, Callable] = {
+                tool_config.tool.name: tool_config.function
+                for tool_config in tools
+            }
+
             # Prepare messages for OpenAI
             inside_loop_messages: list[
                 Message
@@ -147,7 +153,7 @@ class Agent:
                 | ResponseOutputMessage
             ] = []
 
-            inside_loop_messages.extend(self._parse_from_exchange_messages(messages)) 
+            inside_loop_messages.extend(self._parse_from_exchange_messages(messages))
 
             iteration = 0
             total_tool_calls = 0
@@ -233,41 +239,33 @@ class Agent:
                         logger.info(desc)
 
                         # Execute function
-                        if function_name in self.functions:
+                        if function_name in tool_registry:
                             try:
-                                result = self.functions[function_name].execute(
-                                    message=function_call,
-                                    # system_prompt=system_prompt,
-                                    **function_args,
-                                )
-                                desc += f"\n===Result===\n\n{result[:300]}"
+                                result = tool_registry[function_name](**function_args)
+                                result_str = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
+                                desc += f"\n===Result===\n\n{result_str[:300]}"
                                 logger.info(desc)
 
-                                messages.append(
+                                inside_loop_messages.append(
                                     FunctionCallOutput(
                                         call_id=call_id,
-                                        output=result,
+                                        output=result_str,
                                         type="function_call_output",
                                     )
                                 )
 
                             except Exception as e:
-                                logger.error(
-                                    f"Error executing function {function_name}: {e}"
-                                )
-                                desc = f"❌ Error executing function {function_name}: {str(e)}\nTraceback: {traceback.format_exc()}"
-                                messages.append(
+                                logger.error(f"Error executing function {function_name}: {e}")
+                                error_output = f"Error executing {function_name}: {str(e)}"
+                                inside_loop_messages.append(
                                     FunctionCallOutput(
-                                        call_id=function_call.call_id,
-                                        output=desc,
+                                        call_id=call_id,
+                                        output=error_output,
                                         type="function_call_output",
                                     )
                                 )
-
-                                logger.info(desc)
                         else:
-                            # Function not found
-                            error_msg = f"❌ Function {function_name} not found"
+                            error_msg = f"Function {function_name} not found"
                             inside_loop_messages.append(
                                 FunctionCallOutput(
                                     call_id=call_id,
@@ -275,9 +273,7 @@ class Agent:
                                     type="function_call_output",
                                 )
                             )
-                            logger.error(
-                                f"Error executing function {function_name}: {error_msg}"
-                            )
+                            logger.error(f"Tool not registered: {function_name}")
 
                     logger.info("Finished processing function calls, continuing loop")
 

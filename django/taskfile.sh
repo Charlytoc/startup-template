@@ -24,16 +24,17 @@ function help() {
   echo "Development Tasks:"
   echo "  setup-env         Set up environment variables and install dependencies"
   echo "  setup-django      Initialize Django (migrate, create superuser)"
-  echo "  start [--rebuild,-r]   Start local development environment"
+  echo "  start [--rebuild,-r]   Start backend (Docker: Django, Celery, Redis, Realtime)"
   echo "  down              Stop development environment"
   echo "  down-clean        Stop and clean development environment (removes volumes)"
   echo "  migrate [app migration] Run Django migrations"
   echo "  reset-db-seq      Reset database sequences"
+  echo "  web               Start frontend natively (npm run dev)"
   echo "  psql              Connect to PostgreSQL database"
   echo ""
   echo "Examples:"
-  echo "  ./taskfile.sh start                  # Start development (no rebuild)"
-  echo "  ./taskfile.sh start --rebuild        # Start development with rebuild"
+  echo "  ./taskfile.sh start                  # Start backend (no rebuild)"
+  echo "  ./taskfile.sh start --rebuild        # Start backend with rebuild"
   echo "  ./taskfile.sh migrate                # Make and apply migrations"
   echo "  ./taskfile.sh migrate core 0038      # Roll back to specific migration"
 }
@@ -116,6 +117,18 @@ function start() {
   docker compose -f docker-compose.yml up -d --force-recreate $build_flag
 
   docker compose -f docker-compose.yml exec django python manage.py migrate
+}
+
+function web() {
+  local web_dir
+  web_dir="$(cd "$(dirname "$0")/../web" && pwd)"
+  source "$(dirname "$0")/.env" 2>/dev/null || true
+  local port="${WEB_PORT:-3000}"
+  cd "$web_dir"
+  OPENAPI_URL="http://localhost:${DJANGO_PORT:-8000}/api/openapi.json" \
+  NEXT_PUBLIC_API_BASE_URL="http://localhost:${DJANGO_PORT:-8000}/api" \
+  NEXT_PUBLIC_REALTIME_URL="http://localhost:${REALTIME_PORT:-3001}" \
+  npm run dev -- --port "$port"
 }
 
 function down() {

@@ -99,25 +99,6 @@ services:
       - redis
       - celery
 
-  web:
-    container_name: "web-container"
-    build:
-      context: ../web
-      dockerfile: Dockerfile
-    environment:
-      - NODE_ENV=development
-      - OPENAPI_URL=http://django:8000/api/openapi.json
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:${DJANGO_PORT:-8000}/api
-      - NEXT_PUBLIC_REALTIME_URL=http://localhost:${REALTIME_PORT:-3001}
-    ports:
-      - "${WEB_PORT:-3000}:3000"
-    volumes:
-      - ../web:/app
-      - /app/node_modules
-    depends_on:
-      django:
-        condition: service_healthy
-
   realtime:
     container_name: "realtime-container"
     build:
