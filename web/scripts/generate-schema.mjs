@@ -4,7 +4,7 @@ import fs from "fs";
 import ts from "typescript";
 import { fileURLToPath } from "url";
 
-const OPENAPI_SPEC_PATH = process.argv[2] ?? "http://localhost:8000/api/openapi.json";
+const OPENAPI_SPEC_PATH = process.argv[2] ?? process.env.OPENAPI_URL ?? "http://localhost:8000/api/openapi.json";
 
 const BLOB = ts.factory.createIdentifier("Blob");
 const NULL = ts.factory.createLiteralTypeNode(ts.factory.createNull());

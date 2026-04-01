@@ -40,7 +40,7 @@ services:
     env_file: .env
     build:
       context: ./
-      dockerfile: ./deployment/local/Dockerfile
+      dockerfile: ./Dockerfile
     volumes:
       - .:/app
     ports:
@@ -51,13 +51,19 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/openapi.json')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   celery:
     container_name: "celery-container"
     env_file: .env
     build:
       context: ./
-      dockerfile: ./deployment/local/Dockerfile
+      dockerfile: ./Dockerfile
     command: watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config worker -l debug --concurrency=4
     volumes:
       - .:/app
@@ -70,7 +76,7 @@ services:
     env_file: .env
     build:
       context: ./
-      dockerfile: ./deployment/local/Dockerfile
+      dockerfile: ./Dockerfile
     command: watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config beat -l debug --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/app
@@ -83,7 +89,7 @@ services:
     env_file: .env
     build:
       context: ./
-      dockerfile: ./deployment/local/Dockerfile
+      dockerfile: ./Dockerfile
     command: celery -A config flower --port=5555 --address=0.0.0.0
     ports:
       - "5555:5555"
@@ -92,6 +98,25 @@ services:
     depends_on:
       - redis
       - celery
+
+  web:
+    container_name: "web-container"
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - OPENAPI_URL=http://django:8000/api/openapi.json
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:${DJANGO_PORT:-8000}/api
+      - NEXT_PUBLIC_REALTIME_URL=http://localhost:${REALTIME_PORT:-3001}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ../web:/app
+      - /app/node_modules
+    depends_on:
+      django:
+        condition: service_healthy
 
   realtime:
     container_name: "realtime-container"
@@ -104,7 +129,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     ports:
-      - "${CLIENT_PORT:-3001}:3001"
+      - "${REALTIME_PORT:-3001}:3001"
     volumes:
       - ../realtime:/app
       - /app/node_modules

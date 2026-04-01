@@ -30,10 +30,11 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
+    "django",
     "1gm40gnb-8000.use2.devtunnels.ms",
 ]
 
-
+ 
 # Application definition
 
 INSTALLED_APPS = [
@@ -164,9 +165,12 @@ CACHES = {
 }
 
 # CORS Configuration
+_web_port = os.environ.get("WEB_PORT", "3000")
+_django_port = os.environ.get("DJANGO_PORT", "8000")
+
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    f"http://localhost:{_web_port}",
+    f"http://127.0.0.1:{_web_port}",
     "http://localhost:8081",
     "http://127.0.0.1:8081",
     "exp://192.168.1.5:8081",

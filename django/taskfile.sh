@@ -24,7 +24,7 @@ function help() {
   echo "Development Tasks:"
   echo "  setup-env         Set up environment variables and install dependencies"
   echo "  setup-django      Initialize Django (migrate, create superuser)"
-  echo "  dev [--skip-build,-sb] Start local development environment"
+  echo "  start [--rebuild,-r]   Start local development environment"
   echo "  down              Stop development environment"
   echo "  down-clean        Stop and clean development environment (removes volumes)"
   echo "  migrate [app migration] Run Django migrations"
@@ -32,8 +32,8 @@ function help() {
   echo "  psql              Connect to PostgreSQL database"
   echo ""
   echo "Examples:"
-  echo "  ./taskfile.sh dev                    # Start development with build"
-  echo "  ./taskfile.sh dev --skip-build       # Start development without build"
+  echo "  ./taskfile.sh start                  # Start development (no rebuild)"
+  echo "  ./taskfile.sh start --rebuild        # Start development with rebuild"
   echo "  ./taskfile.sh migrate                # Make and apply migrations"
   echo "  ./taskfile.sh migrate core 0038      # Roll back to specific migration"
 }
@@ -92,18 +92,18 @@ else:
 "
 }
 
-function dev() {
-  local skip_build_flag="--build"
-  local should_remove_images=true
-  
+function start() {
+  local build_flag=""
+  local should_remove_images=false
+
   for arg in "$@"; do
-    if [[ "$arg" == "--skip-build" || "$arg" == "-sb" ]]; then
-      skip_build_flag=""
-      should_remove_images=false
+    if [[ "$arg" == "--rebuild" || "$arg" == "-r" ]]; then
+      build_flag="--build"
+      should_remove_images=true
       break
     fi
   done
-  
+
   if [ "$should_remove_images" = true ]; then
     # Stop containers and remove only images from this stack
     docker compose -f docker-compose.yml down --rmi local --remove-orphans
@@ -113,7 +113,7 @@ function dev() {
   fi
 
   # Start the stack with new configuration
-  docker compose -f docker-compose.yml up -d --force-recreate $skip_build_flag
+  docker compose -f docker-compose.yml up -d --force-recreate $build_flag
 
   docker compose -f docker-compose.yml exec django python manage.py migrate
 }
@@ -156,7 +156,7 @@ function psql() {
   docker compose -f docker-compose.yml exec postgres psql -U "${POSTGRES_USER:-startup-user}" -d "${POSTGRES_DB:-startup-db}"
 }
 
-run() {
+function shell() {
     echo "Running Django command: $*"
     docker compose -f docker-compose.yml exec django python manage.py "$@"
 }

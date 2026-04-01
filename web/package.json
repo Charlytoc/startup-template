@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run -s generate-api-types && next dev",
+    "dev:docker": "node ./scripts/generate-schema.mjs && next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
