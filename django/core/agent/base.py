@@ -27,8 +27,7 @@ class AgentConfig(BaseModel):
         default=20, description="Maximum iterations for agent loop"
     )
     system_prompt: str = Field(..., description="System prompt for the agent")
-    model: str = Field(default="gpt-4.1-mini", description="Model to use for the agent")
-    temperature: float = Field(default=0.5, description="Temperature for the agent")
+    model: str = Field(default="gpt-5.4-mini", description="Model to use for the agent")
 
 
 class AgentTool(BaseModel):
@@ -51,6 +50,8 @@ class AgentLoopSummary(BaseModel):
     messages: List[ExchangeMessage] = Field(..., description="Messages processed in the loop")
     final_response: str = Field("", description="Final response from the agent")
     error: str | None = Field(None, description="Error message if any")
+    iterations: int = Field(0, description="Number of agent loop iterations")
+    tool_calls_count: int = Field(0, description="Total number of tool calls made")
 
 class Agent:
     """Main agent class for managing functions and OpenAI interactions"""
@@ -149,6 +150,7 @@ class Agent:
             inside_loop_messages.extend(self._parse_from_exchange_messages(messages)) 
 
             iteration = 0
+            total_tool_calls = 0
             previous_response_id = None
 
             while iteration < self.config.max_iterations:
@@ -174,7 +176,9 @@ class Agent:
                     return AgentLoopSummary(
                         messages=self._filter_exchange_messages(inside_loop_messages),
                         final_response="",
-                        error="Error getting response from OpenAI"
+                        error="Error getting response from OpenAI",
+                        iterations=iteration,
+                        tool_calls_count=total_tool_calls,
                     )
 
                 # Process response items
@@ -194,6 +198,7 @@ class Agent:
 
                 if function_calls:
                     # Process each function call
+                    total_tool_calls += len(function_calls)
                     logger.info(f"Processing {len(function_calls)} function calls")
 
                     for function_call in function_calls:
@@ -290,23 +295,28 @@ class Agent:
                     return AgentLoopSummary(
                         messages=self._filter_exchange_messages(inside_loop_messages),
                         final_response=final_response,
-                        error=None
+                        error=None,
+                        iterations=iteration,
+                        tool_calls_count=total_tool_calls,
                     )
 
             return AgentLoopSummary(
                 messages=self._filter_exchange_messages(inside_loop_messages),
                 final_response="",
-                error="❌ Maximum iterations reached. Try again."
+                error="Maximum iterations reached. Try again.",
+                iterations=iteration,
+                tool_calls_count=total_tool_calls,
             )
 
         except Exception as e:
             logger.error(f"Error in agent loop: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            # Ensure inside_loop_messages is defined
             if 'inside_loop_messages' not in locals():
                 inside_loop_messages = []
             return AgentLoopSummary(
                 messages=self._filter_exchange_messages(inside_loop_messages),
                 final_response="",
-                error=f"❌ Error in agent: {str(e)}"
+                error=f"Error in agent: {str(e)}",
+                iterations=iteration if 'iteration' in locals() else 0,
+                tool_calls_count=total_tool_calls if 'total_tool_calls' in locals() else 0,
             )
