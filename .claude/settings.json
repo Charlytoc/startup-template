@@ -1,8 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(sed -i 's|./taskfile.sh dev                    # Start development with build|./taskfile.sh run                    # Start development \\(no rebuild\\)|' c:/Users/Usuario/projects/startups/influencers/django/taskfile.sh)",
-      "Bash(sed -i 's|./taskfile.sh dev --skip-build       # Start development without build|./taskfile.sh run --rebuild          # Start development with rebuild|' c:/Users/Usuario/projects/startups/influencers/django/taskfile.sh)"
-    ]
+    "allow": []
   }
 }

@@ -11,7 +11,7 @@ services:
       - "POSTGRES_USER=${POSTGRES_USER:-startup-user}"
       - "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-startup_password}"
     volumes:
-      - "${PWD}/data/postgres:/var/lib/postgresql/data"
+      - "./django/data/postgres:/var/lib/postgresql/data"
     ports:
       - 5432:5432
     healthcheck:
@@ -39,10 +39,10 @@ services:
     container_name: "django-container"
     env_file: .env
     build:
-      context: ./
-      dockerfile: ./Dockerfile
+      context: ./django
+      dockerfile: Dockerfile
     volumes:
-      - .:/app
+      - ./django:/app
     ports:
       - "${DJANGO_PORT:-8000}:8000"
     command: python manage.py runserver 0.0.0.0:8000
@@ -62,11 +62,11 @@ services:
     container_name: "celery-container"
     env_file: .env
     build:
-      context: ./
-      dockerfile: ./Dockerfile
+      context: ./django
+      dockerfile: Dockerfile
     command: watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config worker -l debug --concurrency=4
     volumes:
-      - .:/app
+      - ./django:/app
     depends_on:
       - redis
       - postgres
@@ -75,11 +75,11 @@ services:
     container_name: "celery-beat-container"
     env_file: .env
     build:
-      context: ./
-      dockerfile: ./Dockerfile
+      context: ./django
+      dockerfile: Dockerfile
     command: watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config beat -l debug --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
-      - .:/app
+      - ./django:/app
     depends_on:
       - redis
       - postgres
@@ -88,13 +88,13 @@ services:
     container_name: "flower-container"
     env_file: .env
     build:
-      context: ./
-      dockerfile: ./Dockerfile
+      context: ./django
+      dockerfile: Dockerfile
     command: celery -A config flower --port=5555 --address=0.0.0.0
     ports:
       - "5555:5555"
     volumes:
-      - .:/app
+      - ./django:/app
     depends_on:
       - redis
       - celery
@@ -102,7 +102,7 @@ services:
   realtime:
     container_name: "realtime-container"
     build:
-      context: ../realtime
+      context: ./realtime
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=development
@@ -112,7 +112,7 @@ services:
     ports:
       - "${REALTIME_PORT:-3001}:3001"
     volumes:
-      - ../realtime:/app
+      - ./realtime:/app
       - /app/node_modules
     command: npm run dev
     depends_on:

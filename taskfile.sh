@@ -42,20 +42,9 @@ function help() {
 function setup-env() {
   if [ ! -f .env ]; then
     cp .env.example .env
-    echo "Copied .env.sample to .env"
+    echo "Copied .env.example to .env"
     echo "Please ask for sensitive environment variable values"
   fi
-
-#   brew install python@3.12
-
-#   rm -rf venv
-#   python3.12 -m venv venv
-#   source venv/bin/activate
-
-#   pip3 install -r requirements-dev.txt
-#   pre-commit install
-
-#   pip3 install -r requirements.txt
 }
 
 function setup-django() {
@@ -121,7 +110,7 @@ function start() {
 
 function web() {
   local web_dir
-  web_dir="$(cd "$(dirname "$0")/../web" && pwd)"
+  web_dir="$(cd "$(dirname "$0")/web" && pwd)"
   source "$(dirname "$0")/.env" 2>/dev/null || true
   local port="${WEB_PORT:-3000}"
   cd "$web_dir"
@@ -132,15 +121,15 @@ function web() {
 }
 
 function down() {
-  echo "🛑 Stopping development environment..."
+  echo "Stopping development environment..."
   docker compose -f docker-compose.yml down
-  echo "✅ Development environment stopped!"
+  echo "Development environment stopped!"
 }
 
 function down-clean() {
-  echo "🧹 Stopping and cleaning development environment..."
+  echo "Stopping and cleaning development environment..."
   docker compose -f docker-compose.yml down -v --rmi all --remove-orphans
-  echo "✅ Development environment stopped and cleaned!"
+  echo "Development environment stopped and cleaned!"
 }
 
 function migrate() {
