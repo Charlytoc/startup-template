@@ -176,6 +176,13 @@ CORS_ALLOWED_ORIGINS = [
     "exp://192.168.1.5:8081",
 ]
 
+# In DEBUG, allow any localhost / 127.0.0.1 port (Next.js, Docker mapped ports like 9002, etc.)
+if DEBUG:
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r"^http://localhost:\d+$",
+        r"^http://127\.0\.0\.1:\d+$",
+    ]
+
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = [
@@ -188,6 +195,7 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-org-id",
 ]
 
 

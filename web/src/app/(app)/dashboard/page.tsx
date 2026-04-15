@@ -37,7 +37,7 @@ export default function DashboardPage() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
-  const [selectedOrgId] = useLocalStorage<number | null>({
+  const [selectedOrgId] = useLocalStorage<string | null>({
     key: SELECTED_ORG_ID_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
@@ -65,7 +65,9 @@ export default function DashboardPage() {
     if (!organizations?.length || selectedOrgId == null) {
       return null;
     }
-    return organizations.find((o) => o.id === selectedOrgId) ?? null;
+    return (
+      organizations.find((o) => String(o.id) === String(selectedOrgId)) ?? null
+    );
   }, [organizations, selectedOrgId]);
 
   const profileOrg = displayUser ? parseOrganization(displayUser.organization) : null;

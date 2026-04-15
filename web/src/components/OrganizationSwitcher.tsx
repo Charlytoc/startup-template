@@ -24,7 +24,7 @@ export function OrganizationSwitcher() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
-  const [selectedOrgId, setSelectedOrgId] = useLocalStorage<number | null>({
+  const [selectedOrgId, setSelectedOrgId] = useLocalStorage<string | null>({
     key: SELECTED_ORG_ID_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
@@ -42,13 +42,14 @@ export function OrganizationSwitcher() {
     if (organizations.length === 0) {
       const fallback = user ? parseOrganization(user.organization).id : null;
       if (fallback != null) {
-        setSelectedOrgId(fallback);
+        setSelectedOrgId(String(fallback));
       }
       return;
     }
-    const allowed = new Set(organizations.map((o) => o.id));
-    if (selectedOrgId == null || !allowed.has(selectedOrgId)) {
-      setSelectedOrgId(organizations[0].id);
+    const allowed = new Set(organizations.map((o) => String(o.id)));
+    const current = selectedOrgId != null ? String(selectedOrgId) : null;
+    if (current == null || !allowed.has(current)) {
+      setSelectedOrgId(String(organizations[0].id));
     }
   }, [organizations, selectedOrgId, setSelectedOrgId, user]);
 
@@ -86,7 +87,12 @@ export function OrganizationSwitcher() {
       placeholder="Organization"
       data={selectData}
       value={selectedOrgId != null ? String(selectedOrgId) : null}
-      onChange={(v) => setSelectedOrgId(v != null ? Number(v) : null)}
+      onChange={(v) => {
+        if (v == null) return;
+        setSelectedOrgId(v);
+      }}
+      allowDeselect={false}
+      clearable={false}
       comboboxProps={{ withinPortal: true, zIndex: 400 }}
     />
   );

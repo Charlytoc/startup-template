@@ -76,7 +76,7 @@ export default function ChatPage() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
-  const [selectedOrgId] = useLocalStorage<number | null>({
+  const [selectedOrgId] = useLocalStorage<string | null>({
     key: SELECTED_ORG_ID_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
@@ -117,7 +117,7 @@ export default function ChatPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (payload: { token: string; message: string; organizationId: number }) => {
+    mutationFn: async (payload: { token: string; message: string; organizationId: string }) => {
       const response = await fetch(`${API_BASE_URL}/agentic-chat/messages`, {
         method: "POST",
         headers: {
@@ -146,7 +146,8 @@ export default function ChatPage() {
   const activeOrganizationId = useMemo(() => {
     if (!user) return null;
     const fromUser = parseOrganization(user.organization).id;
-    return selectedOrgId ?? fromUser ?? null;
+    const picked = selectedOrgId != null ? String(selectedOrgId) : null;
+    return picked ?? fromUser ?? null;
   }, [user, selectedOrgId]);
 
   const canSend = useMemo(
