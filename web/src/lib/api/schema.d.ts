@@ -141,7 +141,10 @@ export interface components {
     schemas: {
         /** OrganizationResponse */
         OrganizationResponse: {
-            /** Id */
+            /**
+             * Id
+             * Format: uuid
+             */
             id: string;
             /** Name */
             name: string;
