@@ -1,7 +1,35 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "django"
+name = "influencers-django"
 version = "0.1.0"
-description = "Add your description here"
+description = "Django API and workers for the influencers / Coworkers AI project"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "Django==6.0.4",
+    "django-ninja==1.6.2",
+    "pydantic==2.13.0",
+    "psycopg2-binary==2.9.11",
+    "redis==7.4.0",
+    "celery==5.6.3",
+    "django-celery-beat==2.9.0",
+    "django-celery-results==2.6.0",
+    "gunicorn==25.3.0",
+    "watchdog==6.0.0",
+    "django-model-utils==5.0.0",
+    "PyJWT==2.12.1",
+    "flower==2.0.1",
+    "django-cors-headers==4.9.0",
+    "openai==2.31.0",
+    "requests==2.33.1",
+    "django-storages==1.14.6",
+    "boto3==1.42.89",
+    "Pillow==12.2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["config*", "core*"]

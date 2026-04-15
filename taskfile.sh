@@ -22,7 +22,7 @@ function help() {
   echo "$0 <task> <args>"
   echo ""
   echo "Development Tasks:"
-  echo "  setup-env         Set up environment variables and install dependencies"
+  echo "  setup-env         Copy .env if missing and uv sync Django .venv (IDE / lint)"
   echo "  setup-django      Initialize Django (migrate, create superuser)"
   echo "  start [--rebuild,-r]   Start backend (Docker: Django, Celery, Redis, Realtime)"
   echo "  down              Stop development environment"
@@ -40,11 +40,24 @@ function help() {
 }
 
 function setup-env() {
-  if [ ! -f .env ]; then
-    cp .env.example .env
+  local root
+  root="$(cd "$(dirname "$0")" && pwd)"
+
+  if [ ! -f "$root/.env" ]; then
+    cp "$root/.env.example" "$root/.env"
     echo "Copied .env.example to .env"
     echo "Please ask for sensitive environment variable values"
   fi
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "uv is not installed. Install it, then re-run: ./taskfile.sh setup-env" >&2
+    echo "  https://docs.astral.sh/uv/getting-started/installation/" >&2
+    return 1
+  fi
+
+  echo "Syncing Django project (creates/updates django/.venv for IDE lint and IntelliSense)..."
+  (cd "$root/django" && uv sync)
+  echo "Django venv ready at django/.venv — select that interpreter in your editor if needed."
 }
 
 function setup-django() {
