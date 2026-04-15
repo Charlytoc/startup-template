@@ -1,5 +1,6 @@
 import base64
 from typing import Optional
+from uuid import UUID
 
 from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
@@ -9,6 +10,7 @@ from ninja.security import django_auth
 
 from core.models import ApiToken, Organization, OrganizationMember, User
 from core.services.auth import ApiKeyAuth
+from core.services.signup_organization import create_personal_organization_for_signup
 from core.utils.schemas import ErrorResponseSchema
 
 router = Router(tags=["Authentication"])
@@ -19,7 +21,7 @@ class SignupRequest(Schema):
     password: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    organization_id: Optional[int] = None
+    organization_id: Optional[UUID] = None
 
 
 class LoginRequest(Schema):
@@ -40,7 +42,7 @@ class UserResponse(Schema):
 
 
 class OrganizationResponse(Schema):
-    id: int
+    id: UUID
     name: str
     domain: str
     status: str
@@ -59,7 +61,7 @@ def get_user_response(user: User) -> UserResponse:
         first_name=user.first_name,
         last_name=user.last_name,
         organization={
-            "id": user.organization.id,
+            "id": str(user.organization.id),
             "name": user.organization.name,
             "domain": user.organization.domain,
             "status": user.organization.status,
@@ -138,13 +140,15 @@ def signup(request, data: SignupRequest):
         return 400, ErrorResponseSchema(error="User with this email already exists", error_code="USER_EXISTS")
 
     with transaction.atomic():
-        default_org, _ = Organization.objects.get_or_create(
-            name="Default",
-            defaults={"domain": "default.local", "status": Organization.Status.ACTIVE},
-        )
-        organization = default_org
         if data.organization_id:
-            organization = Organization.objects.filter(id=data.organization_id).first() or default_org
+            organization = Organization.objects.filter(id=data.organization_id).first()
+            if not organization:
+                return 400, ErrorResponseSchema(
+                    error="Invalid organization_id.",
+                    error_code="INVALID_ORGANIZATION",
+                )
+        else:
+            organization = create_personal_organization_for_signup(data.email)
 
         try:
             user = User.objects.create_user(

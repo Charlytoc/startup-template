@@ -142,7 +142,7 @@ export interface components {
         /** OrganizationResponse */
         OrganizationResponse: {
             /** Id */
-            id: number;
+            id: string;
             /** Name */
             name: string;
             /** Domain */
@@ -198,7 +198,7 @@ export interface components {
             /** Last Name */
             last_name?: string | null;
             /** Organization Id */
-            organization_id?: number | null;
+            organization_id?: string | null;
         };
         /** LoginRequest */
         LoginRequest: {

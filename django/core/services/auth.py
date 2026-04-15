@@ -1,4 +1,5 @@
 import base64
+import uuid
 
 from ninja.errors import HttpError
 from ninja.security import APIKeyHeader
@@ -9,7 +10,7 @@ from core.models import ApiToken, Organization, OrganizationMember
 ORGANIZATION_HEADER = "X-Org-Id"
 
 
-def resolve_active_organization(user, organization_id: int) -> Organization:
+def resolve_active_organization(user, organization_id: uuid.UUID) -> Organization:
     """
     Resolve organization from header id: org must exist, be active, and user must be an active member.
     Raises HttpError with clear messages for clients.
@@ -73,11 +74,11 @@ class ApiKeyAuth(APIKeyHeader):
                     setattr(err, "error_code", "organization_header_required")
                     raise err
                 try:
-                    org_id = int(str(org_id_raw).strip())
-                except (TypeError, ValueError):
+                    org_id = uuid.UUID(str(org_id_raw).strip())
+                except (TypeError, ValueError, AttributeError):
                     err = HttpError(
                         400,
-                        f"Invalid {ORGANIZATION_HEADER}: expected integer organization id.",
+                        f"Invalid {ORGANIZATION_HEADER}: expected a UUID organization id.",
                     )
                     setattr(err, "error_code", "organization_header_invalid")
                     raise err

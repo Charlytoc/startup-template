@@ -27,7 +27,7 @@ export function readStoredAuth(): { token: string | null; user: AuthUser | null 
 }
 
 export function parseOrganization(org: AuthUser["organization"]): {
-  id: number | null;
+  id: string | null;
   name: string | null;
   domain: string | null;
   status: string | null;
@@ -36,7 +36,7 @@ export function parseOrganization(org: AuthUser["organization"]): {
     return { id: null, name: null, domain: null, status: null };
   }
   const o = org as Record<string, unknown>;
-  const id = typeof o.id === "number" ? o.id : null;
+  const id = typeof o.id === "string" ? o.id : null;
   const name = typeof o.name === "string" ? o.name : null;
   const domain = typeof o.domain === "string" ? o.domain : null;
   const status = typeof o.status === "string" ? o.status : null;

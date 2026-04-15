@@ -1,4 +1,5 @@
 import time
+import uuid
 from datetime import datetime, timezone
 
 from celery import shared_task
@@ -24,11 +25,12 @@ PROVIDER = "openai"
 
 
 @shared_task(bind=True)
-def run_agentic_chat(self, user_id: int, user_message: str, organization_id: int | None = None):
+def run_agentic_chat(self, user_id: int, user_message: str, organization_id: str | uuid.UUID | None = None):
     user = User.objects.select_related("organization").get(id=user_id)
     org_name: str | None = None
     if organization_id is not None:
-        org_name = Organization.objects.filter(pk=organization_id).values_list("name", flat=True).first()
+        org_pk = organization_id if isinstance(organization_id, uuid.UUID) else uuid.UUID(str(organization_id))
+        org_name = Organization.objects.filter(pk=org_pk).values_list("name", flat=True).first()
     tools = [make_get_user_info_tool(user=user, organization_name=org_name)]
     log = AgentSessionLog.objects.create(
         user_id=user_id,
