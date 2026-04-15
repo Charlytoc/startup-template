@@ -72,10 +72,12 @@ org, created = Organization.objects.get_or_create(
 )
 print(f'Organization: {\"Created\" if created else \"Already exists\"} - {org.name}')
 "
-  # Create superuser with organization
+  # Create superuser with organization + OrganizationMember (IAM membership row)
   docker compose -f docker-compose.yml exec django python manage.py shell -c "
-from core.models import User, Organization
 from django.contrib.auth.hashers import make_password
+from django.utils import timezone
+
+from core.models import Organization, OrganizationMember, User
 
 org = Organization.objects.get(name='Startup')
 user, created = User.objects.get_or_create(
@@ -84,9 +86,26 @@ user, created = User.objects.get_or_create(
         'password': make_password('p'),
         'is_staff': True,
         'is_superuser': True,
-        'organization': org
-    }
+        'organization': org,
+    },
 )
+if not created and user.organization_id != org.id:
+    user.organization = org
+    user.save(update_fields=['organization'])
+
+member, member_created = OrganizationMember.objects.get_or_create(
+    user=user,
+    organization=org,
+    defaults={
+        'status': OrganizationMember.Status.ACTIVE,
+        'joined_at': timezone.now(),
+    },
+)
+if member_created:
+    print(f'OrganizationMember created for {user.email}')
+else:
+    print(f'OrganizationMember already exists for {user.email}')
+
 if created:
     print(f'Superuser created: {user.email}')
 else:
