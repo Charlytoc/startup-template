@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ActionIcon,
   Avatar,
@@ -22,9 +23,9 @@ import {
 import { useLocalStorage } from "@mantine/hooks";
 import { io, Socket } from "socket.io-client";
 import type { components } from "@/lib/api/schema";
+import { TOKEN_KEY, USER_KEY, type AuthUser } from "@/lib/auth-storage";
 
 type ApiSchemas = components["schemas"];
-type AuthUser = ApiSchemas["UserResponse"];
 type AuthResponse = ApiSchemas["AuthResponse"];
 type SignupRequest = ApiSchemas["SignupRequest"];
 type LoginRequest = ApiSchemas["LoginRequest"];
@@ -41,7 +42,6 @@ type RealtimeMessage = {
   timestamp: string;
 };
 
-
 type ChatEntry = {
   id: string;
   role: "user" | "assistant";
@@ -50,22 +50,21 @@ type ChatEntry = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const REALTIME_URL = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:3001";
-const TOKEN_KEY = "startup_template_token";
-const USER_KEY = "startup_template_user";
 
 export default function ChatPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [status, setStatus] = useState("Not connected");
-  const [user, setUser, removeUser] = useLocalStorage<AuthUser | null>({
+  const [user, setUser] = useLocalStorage<AuthUser | null>({
     key: USER_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
   });
-  const [token, setToken, removeToken] = useLocalStorage<string | null>({
+  const [token, setToken] = useLocalStorage<string | null>({
     key: TOKEN_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
@@ -98,6 +97,7 @@ export default function ChatPage() {
       setToken(data.api_token);
       setUser(data.user);
       setStatus("Not connected");
+      router.replace("/dashboard");
     },
     onError: (err: Error) => {
       setStatus(`Auth error: ${err.message}`);
@@ -204,13 +204,6 @@ export default function ChatPage() {
     }
   }
 
-  function logout() {
-    removeToken();
-    removeUser();
-    setMessages([]);
-    setStatus("Not connected");
-  }
-
   const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
   if (!user) {
@@ -285,8 +278,11 @@ export default function ChatPage() {
   }
 
   return (
-    <Box h="100vh" style={{ display: "flex", flexDirection: "column", background: "var(--mantine-color-body)" }}>
-      {/* Header */}
+    <Box
+      flex={1}
+      mih={0}
+      style={{ display: "flex", flexDirection: "column", background: "var(--mantine-color-body)" }}
+    >
       <Box
         px="lg"
         py="sm"
@@ -296,27 +292,21 @@ export default function ChatPage() {
           flexShrink: 0,
         }}
       >
-        <Group justify="space-between">
-          <Group gap="sm">
-            <Avatar color="blue" radius="xl" size="sm">
-              {userInitial}
-            </Avatar>
-            <Box>
-              <Text size="sm" fw={600} lh={1.2}>
-                AI Assistant
-              </Text>
-              <Text size="xs" c={status === "connected" || status.startsWith("Joined") ? "teal" : "dimmed"}>
-                {status.startsWith("Joined") ? "● Online" : status === "connected" ? "● Online" : "○ " + status}
-              </Text>
-            </Box>
-          </Group>
-          <Button variant="subtle" color="gray" size="xs" onClick={logout}>
-            Sign out
-          </Button>
+        <Group gap="sm">
+          <Avatar color="blue" radius="xl" size="sm">
+            {userInitial}
+          </Avatar>
+          <Box>
+            <Text size="sm" fw={600} lh={1.2}>
+              AI Assistant
+            </Text>
+            <Text size="xs" c={status === "connected" || status.startsWith("Joined") ? "teal" : "dimmed"}>
+              {status.startsWith("Joined") ? "● Online" : status === "connected" ? "● Online" : "○ " + status}
+            </Text>
+          </Box>
         </Group>
       </Box>
 
-      {/* Messages */}
       <ScrollArea style={{ flex: 1 }} viewportRef={viewportRef} px="md" py="sm">
         <Stack gap="md" py="sm" maw={720} mx="auto">
           {messages.length === 0 && (
@@ -324,7 +314,9 @@ export default function ChatPage() {
               <Stack align="center" gap="xs">
                 <Text size="xl">👋</Text>
                 <Text fw={500}>How can I help you today?</Text>
-                <Text size="sm" c="dimmed">Ask me anything — I have access to your profile info.</Text>
+                <Text size="sm" c="dimmed">
+                  Ask me anything — I have access to your profile info.
+                </Text>
               </Stack>
             </Center>
           )}
@@ -353,7 +345,9 @@ export default function ChatPage() {
               </Group>
             ) : (
               <Group key={m.id} align="flex-end" gap="xs">
-                <Avatar color="violet" radius="xl" size="sm">AI</Avatar>
+                <Avatar color="violet" radius="xl" size="sm">
+                  AI
+                </Avatar>
                 <Box maw="75%">
                   <Paper
                     px="md"
@@ -376,7 +370,9 @@ export default function ChatPage() {
 
           {waiting && (
             <Group align="flex-end" gap="xs">
-              <Avatar color="violet" radius="xl" size="sm">AI</Avatar>
+              <Avatar color="violet" radius="xl" size="sm">
+                AI
+              </Avatar>
               <Paper
                 px="md"
                 py="sm"
@@ -396,7 +392,6 @@ export default function ChatPage() {
         </Stack>
       </ScrollArea>
 
-      {/* Input */}
       <Box
         px="md"
         py="sm"

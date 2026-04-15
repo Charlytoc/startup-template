@@ -13,30 +13,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import type { components } from "@/lib/api/schema";
-
-type AuthUser = components["schemas"]["UserResponse"];
-
-const TOKEN_KEY = "startup_template_token";
-const USER_KEY = "startup_template_user";
-
-function readStoredAuth(): { token: string | null; user: AuthUser | null } {
-  if (typeof window === "undefined") {
-    return { token: null, user: null };
-  }
-  try {
-    const rawT = localStorage.getItem(TOKEN_KEY);
-    const rawU = localStorage.getItem(USER_KEY);
-    const token = rawT ? (JSON.parse(rawT) as string | null) : null;
-    const user = rawU ? (JSON.parse(rawU) as AuthUser | null) : null;
-    return {
-      token: typeof token === "string" && token.length > 0 ? token : null,
-      user: user && typeof user === "object" && "id" in user ? user : null,
-    };
-  } catch {
-    return { token: null, user: null };
-  }
-}
+import { readStoredAuth } from "@/lib/auth-storage";
 
 export default function Home() {
   const router = useRouter();
@@ -45,7 +22,7 @@ export default function Home() {
   useEffect(() => {
     const { token, user } = readStoredAuth();
     if (token && user) {
-      router.replace("/chat");
+      router.replace("/dashboard");
       return;
     }
     setPhase("landing");
@@ -72,7 +49,7 @@ export default function Home() {
             </Text>
           </Stack>
           <Group gap="sm">
-            <Button component={Link} href="/chat" size="md">
+            <Button component={Link} href="/dashboard" size="md">
               Open app
             </Button>
             <Button component={Link} href="/chat" variant="default" size="md">

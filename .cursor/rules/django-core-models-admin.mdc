@@ -19,4 +19,4 @@ When adding or changing persistence in `django/core/`:
    - Register the model in `django/core/admin/__init__.py` on the default `admin.site` (or the project’s custom site if that becomes the single entry point).
 
 3. **Cross-cutting JSON (capabilities, etc.)**
-   - Prefer shared validation helpers under `django/core/schemas/` (or similar) used from `Model.clean()` and from API serializers, consistent with `Role.role_capabilities` / `ApiToken.capabilities`.
+   - Prefer shared validation helpers under `django/core/schemas/` (or similar) used from `Model.clean()` and from API serializers, consistent with `Role.role_capabilities` / `ApiToken.capabilities`.                
