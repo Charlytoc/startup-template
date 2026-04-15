@@ -49,7 +49,7 @@ app.get('/health', (req, res) => {
     service: 'realtime-microservice',
     port: PORT,
     redis_host: process.env.REDIS_HOST || 'localhost',
-    redis_port: process.env.REDIS_PORT || 6379,
+    redis_port: 6379,
     connections: io.engine.clientsCount
   });
 });
@@ -71,7 +71,7 @@ console.log(`📡 [REALTIME] Environment: ${process.env.NODE_ENV || 'development
 console.log(`🔧 [REALTIME] Configuration:`);
 console.log(`  - Port: ${PORT}`);
 console.log(`  - Redis Host: ${process.env.REDIS_HOST || 'localhost'}`);
-console.log(`  - Redis Port: ${process.env.REDIS_PORT || 6379}`);
+console.log(`  - Redis Port: 6379`);
 console.log(`  - All environment variables:`, JSON.stringify(process.env, null, 2));
 
 // Initialize Redis connection

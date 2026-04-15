@@ -190,7 +190,6 @@ This document provides a quick reference for integrating the real-time communica
 NODE_ENV=development
 PORT=3001
 REDIS_HOST=redis
-REDIS_PORT=6379
 REDIS_PASSWORD=
 DJANGO_API_URL=http://django:8000
 CORS_ORIGIN=*

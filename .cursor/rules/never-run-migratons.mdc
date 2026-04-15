@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+You should NEVER create custom migrations by yourself unless the user explicitly asks for it.
+
+The user preferst to run migratons by its own.

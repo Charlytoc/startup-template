@@ -2,7 +2,7 @@ import { createClient } from 'redis';
 import { Server } from 'socket.io';
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
-const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
+const REDIS_PORT = 6379;
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
 
 export async function initRedis(io: Server) {

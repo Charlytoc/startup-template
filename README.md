@@ -19,7 +19,7 @@ influencers/
 | Django    | http://localhost:8000      | REST API + Django admin              |
 | Web       | http://localhost:3000      | Next.js frontend                     |
 | Realtime  | http://localhost:3001      | WebSocket / realtime events          |
-| Flower    | http://localhost:5555      | Celery task monitoring               |
+| Flower    | http://localhost:5555      | Celery UI (`FLOWER_HOST_PORT` if 5555 is busy) |
 | Postgres  | localhost:5432             | PostgreSQL database                  |
 | Redis     | localhost:6379             | Cache + message broker               |
 
@@ -106,7 +106,7 @@ Run `./taskfile.sh help` to see all available commands.
 2. **Start frontend**: `./taskfile.sh web` (separate terminal)
 3. **Make Django migrations**: `./taskfile.sh migrate`
 4. **Access Django admin**: http://localhost:8000/admin (admin@localhost.com / p)
-5. **Monitor Celery tasks**: http://localhost:5555
+5. **Monitor Celery tasks**: http://localhost:5555 (or the host port from `FLOWER_HOST_PORT` in `.env`)
 6. **Stop everything**: `./taskfile.sh down`
 
 ### Rebuilding after dependency changes
@@ -136,10 +136,15 @@ All configuration lives in `.env` at the project root (copied from `.env.example
 | `POSTGRES_DB` | `startup-db` | Database name |
 | `POSTGRES_USER` | `startup-user` | Database user |
 | `POSTGRES_PASSWORD` | `startup_password` | Database password |
+| `POSTGRES_HOST_PORT` | `5432` | Host port mapped to Postgres in Docker (change if local 5432 is busy) |
+| `POSTGRES_PORT` | `5432` | Port Django uses to reach `postgres` inside Compose (leave at 5432) |
 | `DJANGO_PORT` | `8000` | Django API port |
 | `REALTIME_PORT` | `3001` | Realtime service port |
+| `FLOWER_HOST_PORT` | `5555` | Host port mapped to Flower in Docker (change if local 5555 is busy) |
 | `WEB_PORT` | `3000` | Next.js dev server port |
-| `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_HOST_PORT` | `6379` | Host port mapped to Redis in Docker (raise if local 6379 is busy) |
+| `REDIS_HOST` | `redis` | Redis hostname (e.g. ElastiCache endpoint in AWS) |
+| `REDIS_URL` / `CELERY_*` | see `.env.example` | Full URLs; use if host or DB index differs from defaults |
 | `OPENAI_API_KEY` | _(empty)_ | Optional — for AI features |
 
 The web frontend also has its own `web/.env.local` (see `web/.env.local.example`).
