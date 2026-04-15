@@ -6,7 +6,7 @@ from celery.utils.log import get_task_logger
 
 from core.agent.base import Agent, AgentConfig
 from core.agent.tools.get_user_info import make_get_user_info_tool
-from core.models import User
+from core.models import Organization, User
 from core.models.agent_session_log import AgentSessionLog
 from core.schemas.agentic_chat import ExchangeMessage
 from core.services.redis_publisher import publish_to_bridge
@@ -24,9 +24,12 @@ PROVIDER = "openai"
 
 
 @shared_task(bind=True)
-def run_agentic_chat(self, user_id: int, user_message: str):
+def run_agentic_chat(self, user_id: int, user_message: str, organization_id: int | None = None):
     user = User.objects.select_related("organization").get(id=user_id)
-    tools = [make_get_user_info_tool(user=user)]
+    org_name: str | None = None
+    if organization_id is not None:
+        org_name = Organization.objects.filter(pk=organization_id).values_list("name", flat=True).first()
+    tools = [make_get_user_info_tool(user=user, organization_name=org_name)]
     log = AgentSessionLog.objects.create(
         user_id=user_id,
         celery_task_id=self.request.id,

@@ -3,11 +3,12 @@ from typing import Optional
 
 from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from ninja import Router, Schema
 from ninja.security import django_auth
 
-from core.models import ApiToken, Organization, User
-from core.utils.auth import ApiKeyAuth
+from core.models import ApiToken, Organization, OrganizationMember, User
+from core.services.auth import ApiKeyAuth
 from core.utils.schemas import ErrorResponseSchema
 
 router = Router(tags=["Authentication"])
@@ -85,6 +86,20 @@ def get_auth_context(request):
     return request.user, request.organization
 
 
+def ensure_primary_organization_membership(user: User) -> None:
+    """IAM row for the user's primary FK organization (required for org-scoped API access)."""
+    if not user.organization_id:
+        return
+    OrganizationMember.objects.get_or_create(
+        user=user,
+        organization_id=user.organization_id,
+        defaults={
+            "status": OrganizationMember.Status.ACTIVE,
+            "joined_at": timezone.now(),
+        },
+    )
+
+
 @router.get("/organizations", response={200: list[OrganizationResponse]})
 def list_organizations(request):
     organizations = Organization.objects.filter(status=Organization.Status.ACTIVE)
@@ -117,6 +132,8 @@ def signup(request, data: SignupRequest):
         except IntegrityError:
             return 400, ErrorResponseSchema(error="User with this email already exists", error_code="USER_EXISTS")
 
+        ensure_primary_organization_membership(user)
+
         api_token = ApiToken.objects.create(user=user, name="Default Token")
         encoded_token = base64.b64encode(api_token.token.encode()).decode()
 
@@ -134,6 +151,8 @@ def login(request, data: LoginRequest):
         return 401, ErrorResponseSchema(error="Invalid email or password", error_code="INVALID_CREDENTIALS")
     if not user.is_active:
         return 401, ErrorResponseSchema(error="Account is deactivated", error_code="ACCOUNT_DEACTIVATED")
+
+    ensure_primary_organization_membership(user)
 
     api_token, _ = ApiToken.objects.get_or_create(user=user, name="Default Token", defaults={"is_active": True})
     encoded_token = base64.b64encode(api_token.token.encode()).decode()

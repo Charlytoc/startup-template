@@ -23,7 +23,14 @@ import {
 import { useLocalStorage } from "@mantine/hooks";
 import { io, Socket } from "socket.io-client";
 import type { components } from "@/lib/api/schema";
-import { TOKEN_KEY, USER_KEY, type AuthUser } from "@/lib/auth-storage";
+import {
+  ORGANIZATION_HEADER,
+  SELECTED_ORG_ID_KEY,
+  TOKEN_KEY,
+  USER_KEY,
+  parseOrganization,
+  type AuthUser,
+} from "@/lib/auth-storage";
 
 type ApiSchemas = components["schemas"];
 type AuthResponse = ApiSchemas["AuthResponse"];
@@ -69,6 +76,11 @@ export default function ChatPage() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
+  const [selectedOrgId] = useLocalStorage<number | null>({
+    key: SELECTED_ORG_ID_KEY,
+    defaultValue: null,
+    getInitialValueInEffect: true,
+  });
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [waiting, setWaiting] = useState(false);
@@ -105,12 +117,13 @@ export default function ChatPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (payload: { token: string; message: string }) => {
+    mutationFn: async (payload: { token: string; message: string; organizationId: number }) => {
       const response = await fetch(`${API_BASE_URL}/agentic-chat/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${payload.token}`,
+          [ORGANIZATION_HEADER]: String(payload.organizationId),
         },
         body: JSON.stringify({ message: payload.message } satisfies AgenticChatMessageRequest),
       });
@@ -130,16 +143,23 @@ export default function ChatPage() {
     },
   });
 
+  const activeOrganizationId = useMemo(() => {
+    if (!user) return null;
+    const fromUser = parseOrganization(user.organization).id;
+    return selectedOrgId ?? fromUser ?? null;
+  }, [user, selectedOrgId]);
+
   const canSend = useMemo(
     () =>
       Boolean(
         user &&
           token &&
+          activeOrganizationId != null &&
           input.trim().length > 0 &&
           !waiting &&
           !sendMessageMutation.isPending
       ),
-    [input, token, user, waiting, sendMessageMutation.isPending]
+    [input, token, user, activeOrganizationId, waiting, sendMessageMutation.isPending]
   );
 
   useEffect(() => {
@@ -191,10 +211,23 @@ export default function ChatPage() {
 
   function sendMessage(e?: FormEvent) {
     e?.preventDefault();
-    if (!user || !token || !input.trim() || waiting || sendMessageMutation.isPending) return;
+    if (
+      !user ||
+      !token ||
+      activeOrganizationId == null ||
+      !input.trim() ||
+      waiting ||
+      sendMessageMutation.isPending
+    ) {
+      return;
+    }
     const content = input.trim();
     setInput("");
-    sendMessageMutation.mutate({ token, message: content });
+    sendMessageMutation.mutate({
+      token,
+      message: content,
+      organizationId: activeOrganizationId,
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

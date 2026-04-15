@@ -36,18 +36,22 @@ TOOL_SCHEMA = AgentTool(
 )
 
 
-def make_get_user_info_tool(user) -> AgentToolConfig:
+def make_get_user_info_tool(user, *, organization_name: str | None = None) -> AgentToolConfig:
     """
     Factory that binds `user` into the tool callable.
     The returned AgentToolConfig is ready to pass to agent.start_agent_loop().
+    If ``organization_name`` is set (e.g. active org from ``X-Org-Id``), it overrides the user's FK org name.
     """
 
     def execute() -> dict:
+        org_display = organization_name
+        if org_display is None and user.organization_id:
+            org_display = user.organization.name
         return {
             "email": user.email,
             "first_name": user.first_name or "",
             "last_name": user.last_name or "",
-            "organization": user.organization.name if user.organization_id else None,
+            "organization": org_display,
         }
 
     return AgentToolConfig(tool=TOOL_SCHEMA, function=execute)
