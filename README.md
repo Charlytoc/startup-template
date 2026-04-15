@@ -17,7 +17,7 @@ influencers/
 | Service   | URL                        | Description                          |
 |-----------|----------------------------|--------------------------------------|
 | Django    | http://localhost:8000      | REST API + Django admin              |
-| Web       | http://localhost:3000      | Next.js frontend                     |
+| Web       | http://localhost:3000      | Next.js landing; `/chat` when signed in |
 | Realtime  | http://localhost:3001      | WebSocket / realtime events          |
 | Flower    | http://localhost:5555      | Celery UI (`FLOWER_HOST_PORT` if 5555 is busy) |
 | Postgres  | localhost:5432             | PostgreSQL database                  |

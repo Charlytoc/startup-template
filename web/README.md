@@ -25,4 +25,4 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) for the landing page; signed-in users are sent to [http://localhost:3000/chat](http://localhost:3000/chat).
