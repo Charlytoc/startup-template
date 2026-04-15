@@ -15,6 +15,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
+import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import {
   SELECTED_ORG_ID_KEY,
   TOKEN_KEY,
@@ -86,7 +87,7 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AppShell
-      header={{ height: 52 }}
+      header={{ height: 56 }}
       navbar={{
         width: 220,
         breakpoint: "sm",
@@ -94,12 +95,13 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
       }}
       padding={0}
     >
-      <AppShell.Header px="md" style={{ display: "flex", alignItems: "center" }}>
-        <Group justify="space-between" w="100%" wrap="nowrap">
+      <AppShell.Header px="md" py={6} style={{ display: "flex", alignItems: "center" }}>
+        <Group justify="space-between" w="100%" wrap="nowrap" gap="sm">
           <Title order={4} fw={700} lineClamp={1}>
             Coworkers AI
           </Title>
-          <Group gap="xs" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" justify="flex-end" style={{ flex: 1, minWidth: 0 }}>
+            <OrganizationSwitcher />
             <Text size="sm" c="dimmed" visibleFrom="sm" lineClamp={1} maw={200}>
               {effectiveUser.email}
             </Text>
@@ -131,7 +133,7 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
           display: "flex",
           flexDirection: "column",
           minHeight: 0,
-          height: "calc(100vh - var(--app-shell-header-height, 52px))",
+          height: "calc(100vh - var(--app-shell-header-height, 56px))",
         }}
       >
         <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>

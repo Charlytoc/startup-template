@@ -106,6 +106,31 @@ def list_organizations(request):
     return 200, [get_organization_response(org) for org in organizations]
 
 
+@router.get(
+    "/my-organizations",
+    response={200: list[OrganizationResponse], 401: ErrorResponseSchema},
+    auth=[ApiKeyAuth(), django_auth],
+)
+def list_my_organizations(request):
+    try:
+        user, _ = get_auth_context(request)
+    except Exception:
+        return 401, ErrorResponseSchema(error="Authentication required", error_code="AUTH_REQUIRED")
+    if not getattr(user, "is_authenticated", False):
+        return 401, ErrorResponseSchema(error="Authentication required", error_code="AUTH_REQUIRED")
+
+    memberships = (
+        OrganizationMember.objects.filter(
+            user=user,
+            status=OrganizationMember.Status.ACTIVE,
+            organization__status=Organization.Status.ACTIVE,
+        )
+        .select_related("organization")
+        .order_by("organization__name", "organization_id")
+    )
+    return 200, [get_organization_response(m.organization) for m in memberships]
+
+
 @router.post("/signup", response={201: AuthResponse, 400: ErrorResponseSchema})
 def signup(request, data: SignupRequest):
     existing_user = User.objects.filter(email=data.email).first()

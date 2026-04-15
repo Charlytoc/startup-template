@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Alert,
   Center,
   Container,
   Loader,
   Paper,
-  Select,
   SimpleGrid,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
+import { fetchMyOrganizations } from "@/lib/my-organizations";
 import {
   SELECTED_ORG_ID_KEY,
+  TOKEN_KEY,
   USER_KEY,
   parseOrganization,
   readStoredAuth,
@@ -31,7 +32,12 @@ export default function DashboardPage() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
-  const [selectedOrgId, setSelectedOrgId] = useLocalStorage<number | null>({
+  const [token] = useLocalStorage<string | null>({
+    key: TOKEN_KEY,
+    defaultValue: null,
+    getInitialValueInEffect: true,
+  });
+  const [selectedOrgId] = useLocalStorage<number | null>({
     key: SELECTED_ORG_ID_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
@@ -46,15 +52,23 @@ export default function DashboardPage() {
     setSessionOk(true);
   }, [router]);
 
+  const { data: organizations, isPending } = useQuery({
+    queryKey: ["my-organizations", token],
+    queryFn: () => fetchMyOrganizations(token!),
+    enabled: Boolean(token) && sessionOk,
+    staleTime: 60_000,
+  });
+
   const displayUser = user ?? readStoredAuth().user;
 
-  const org = displayUser ? parseOrganization(displayUser.organization) : null;
-
-  useEffect(() => {
-    if (org?.id != null && selectedOrgId == null) {
-      setSelectedOrgId(org.id);
+  const activeOrg = useMemo(() => {
+    if (!organizations?.length || selectedOrgId == null) {
+      return null;
     }
-  }, [org?.id, selectedOrgId, setSelectedOrgId]);
+    return organizations.find((o) => o.id === selectedOrgId) ?? null;
+  }, [organizations, selectedOrgId]);
+
+  const profileOrg = displayUser ? parseOrganization(displayUser.organization) : null;
 
   if (!sessionOk || !displayUser) {
     return (
@@ -68,20 +82,6 @@ export default function DashboardPage() {
     [displayUser.first_name, displayUser.last_name].filter(Boolean).join(" ").trim() ||
     displayUser.email;
 
-  const orgSelectData =
-    org?.id != null && org.name
-      ? [{ value: String(org.id), label: org.name }]
-      : org?.id != null
-        ? [{ value: String(org.id), label: `Organization #${org.id}` }]
-        : [];
-
-  const activeOrg =
-    org?.id != null && selectedOrgId === org.id
-      ? org
-      : org?.id != null
-        ? org
-        : null;
-
   return (
     <Container size="md" py="lg" style={{ flex: 1 }}>
       <Stack gap="lg">
@@ -92,51 +92,46 @@ export default function DashboardPage() {
           </Text>
         </div>
 
-        <Alert variant="light" color="gray" title="Multiple organizations">
-          Membership in more than one organization will be listed here once the API exposes
-          it. Until then, your session reflects the organization returned at login. The active
-          organization choice below is stored in this browser so we can reuse it when multiple
-          orgs are supported.
-        </Alert>
+        <Text size="sm" c="dimmed">
+          Use the organization menu in the header to switch context. API requests send the
+          selected organization id in the X-Org-Id header.
+        </Text>
 
         <Paper withBorder radius="md" p="md">
           <Stack gap="md">
-            <Title order={4}>Organization</Title>
-            {orgSelectData.length > 0 ? (
-              <Select
-                label="Active organization"
-                description="Switching will apply when your account has more than one membership."
-                data={orgSelectData}
-                value={selectedOrgId != null ? String(selectedOrgId) : null}
-                onChange={(v) => setSelectedOrgId(v != null ? Number(v) : null)}
-              />
-            ) : (
-              <Text size="sm" c="dimmed">
-                No organization is attached to your profile in the API response yet.
-              </Text>
+            <Title order={4}>Active organization</Title>
+            {isPending && (
+              <Center py="md">
+                <Loader size="sm" />
+              </Center>
             )}
-
-            {activeOrg && (
+            {!isPending && activeOrg && (
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                 <div>
                   <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
                     Name
                   </Text>
-                  <Text>{activeOrg.name ?? "—"}</Text>
+                  <Text>{activeOrg.name}</Text>
                 </div>
                 <div>
                   <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
                     Domain
                   </Text>
-                  <Text>{activeOrg.domain ?? "—"}</Text>
+                  <Text>{activeOrg.domain}</Text>
                 </div>
                 <div>
                   <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
                     Status
                   </Text>
-                  <Text>{activeOrg.status ?? "—"}</Text>
+                  <Text>{activeOrg.status}</Text>
                 </div>
               </SimpleGrid>
+            )}
+            {!isPending && !activeOrg && profileOrg?.id != null && (
+              <Text size="sm" c="dimmed">
+                Loading organization context… If this persists, open the header menu once your
+                memberships have loaded.
+              </Text>
             )}
           </Stack>
         </Paper>

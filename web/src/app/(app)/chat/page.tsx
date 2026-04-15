@@ -22,6 +22,7 @@ import {
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
 import { io, Socket } from "socket.io-client";
+import { API_BASE_URL } from "@/lib/api-base";
 import type { components } from "@/lib/api/schema";
 import {
   ORGANIZATION_HEADER,
@@ -55,7 +56,6 @@ type ChatEntry = {
   content: string;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const REALTIME_URL = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:3001";
 
 export default function ChatPage() {
