@@ -1,10 +1,29 @@
 from django.contrib import admin
-from core.admin.user import UserAdmin
+
+from core.admin.agent_session_log import AgentSessionLogAdmin
+from core.admin.api_token import ApiTokenAdmin
 from core.admin.organization import OrganizationAdmin
-# from core.admin.api_token import ApiTokenAdmin
-# from core.admin.agent_session_log import AgentSessionLogAdmin  # noqa: F401 — registers via @admin.register
-from core.models import Organization, User
+from core.admin.organization_member import OrganizationMemberAdmin
+from core.admin.role import RoleAdmin
+from core.admin.user import UserAdmin
+from core.admin.workspace import WorkspaceAdmin
+from core.admin.workspace_member import WorkspaceMemberAdmin
+from core.models import (
+    AgentSessionLog,
+    ApiToken,
+    Organization,
+    OrganizationMember,
+    Role,
+    User,
+    Workspace,
+    WorkspaceMember,
+)
 
 admin.site.register(User, UserAdmin)
 admin.site.register(Organization, OrganizationAdmin)
-# admin.site.register(ApiToken, ApiTokenAdmin)
+admin.site.register(OrganizationMember, OrganizationMemberAdmin)
+admin.site.register(Role, RoleAdmin)
+admin.site.register(Workspace, WorkspaceAdmin)
+admin.site.register(WorkspaceMember, WorkspaceMemberAdmin)
+admin.site.register(ApiToken, ApiTokenAdmin)
+# admin.site.register(AgentSessionLog, AgentSessionLogAdmin)

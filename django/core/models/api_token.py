@@ -1,7 +1,10 @@
 import secrets
+
 from django.db import models
-from model_utils.models import TimeStampedModel
 from django.utils import timezone
+from model_utils.models import TimeStampedModel
+
+from core.schemas.capability_list import validate_capability_list
 
 
 class ApiToken(TimeStampedModel):
@@ -15,9 +18,17 @@ class ApiToken(TimeStampedModel):
     last_used_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    capabilities = models.JSONField(
+        default=list,
+        help_text='List of capability objects, each with at least {"id": "<string>"}.',
+    )
 
     class Meta:
         ordering = ["-created"]
+
+    def clean(self):
+        super().clean()
+        validate_capability_list(self.capabilities, field_name="capabilities")
 
     def __str__(self):
         return f"{self.name} ({self.user.email})"

@@ -1,5 +1,4 @@
 from django.contrib import admin
-from core.models import ApiToken
 
 
 class ApiTokenAdmin(admin.ModelAdmin):
@@ -11,6 +10,7 @@ class ApiTokenAdmin(admin.ModelAdmin):
     
     fieldsets = (
         (None, {'fields': ('user', 'name', 'token')}),
+        ('Access', {'fields': ('capabilities',)}),
         ('Status', {'fields': ('is_active', 'expires_at', 'last_used_at')}),
         ('Timestamps', {'fields': ('created', 'modified')}),
     )

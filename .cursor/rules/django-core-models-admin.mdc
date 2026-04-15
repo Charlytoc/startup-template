@@ -1,0 +1,22 @@
+---
+description: Django core — one DB model module and one ModelAdmin module per model
+globs: django/core/models/**/*.py,django/core/admin/**/*.py
+alwaysApply: false
+---
+
+# Django `core`: one model file + one admin file per ORM model
+
+When adding or changing persistence in `django/core/`:
+
+1. **Models (`django/core/models/`)**
+   - Each concrete Django model that maps to its own database table lives in **exactly one** Python module under `django/core/models/`.
+   - Name the file after the model in **snake_case** (e.g. `WorkspaceMember` → `workspace_member.py`).
+   - **`__init__.py`** may only re-export models; do not define ORM models there.
+   - Do not define multiple table-backed models in the same file (split shared enums/helpers into a small non-model module if needed).
+
+2. **Admin (`django/core/admin/`)**
+   - Each such model has a matching **`ModelAdmin`** subclass in **`django/core/admin/`** in a module named after the model in snake_case (e.g. `workspace_member.py` → `WorkspaceMemberAdmin`).
+   - Register the model in `django/core/admin/__init__.py` on the default `admin.site` (or the project’s custom site if that becomes the single entry point).
+
+3. **Cross-cutting JSON (capabilities, etc.)**
+   - Prefer shared validation helpers under `django/core/schemas/` (or similar) used from `Model.clean()` and from API serializers, consistent with `Role.role_capabilities` / `ApiToken.capabilities`.

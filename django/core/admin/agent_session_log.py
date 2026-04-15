@@ -1,9 +1,5 @@
 from django.contrib import admin
 
-from core.models.agent_session_log import AgentSessionLog
-
-
-@admin.register(AgentSessionLog)
 class AgentSessionLogAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "model", "provider", "status", "iterations", "tool_calls_count", "total_duration", "started_at")
     list_filter = ("status", "provider", "model")
