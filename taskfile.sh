@@ -28,7 +28,7 @@ function help() {
   echo "  down              Stop development environment"
   echo "  down-clean        Stop and clean development environment (removes volumes)"
   echo "  migrate [app migration] Run Django migrations"
-  echo "  reset-db-seq      Reset database sequences"
+  echo "  shell [cmd ...]   Open a shell in the django container (or run a one-off command)"
   echo "  web               Start frontend natively (npm run dev)"
   echo "  psql              Connect to PostgreSQL database"
   echo ""
@@ -62,7 +62,6 @@ function setup-env() {
 
 function setup-django() {
   migrate
-  reset-db-seq
   # Create default organization first
   docker compose -f docker-compose.yml exec django python manage.py shell -c "
 from core.models import Organization
@@ -163,17 +162,16 @@ function migrate() {
   fi
 }
 
-function reset-db-seq() {
-  docker compose -f docker-compose.yml exec django bash -c "python manage.py sqlsequencereset core auth admin | python manage.py dbshell"
-}
-
 function psql() {
   docker compose -f docker-compose.yml exec postgres psql -U "${POSTGRES_USER:-startup-user}" -d "${POSTGRES_DB:-startup-db}"
 }
 
 function shell() {
-    echo "Running Django command: $*"
-    docker compose -f docker-compose.yml exec django python manage.py "$@"
+  if [ "$#" -eq 0 ]; then
+    docker compose -f docker-compose.yml exec -it django bash
+  else
+    docker compose -f docker-compose.yml exec -it django "$@"
+  fi
 }
 
 TIMEFORMAT="Task completed in %3lR"

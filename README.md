@@ -92,10 +92,10 @@ Run `./taskfile.sh help` to see all available commands.
   down-clean              Stop containers and remove volumes + images
   migrate                 Run makemigrations + migrate
   migrate <app> <num>     Roll back to a specific migration
-  reset-db-seq            Reset PostgreSQL sequences
   web                     Start Next.js frontend natively
   psql                    Open a psql shell in the postgres container
-  shell <manage.py args>  Run any Django management command
+  shell                   Open an interactive shell in the django container
+  shell <cmd> [args...]   Run a one-off command in the django container
 ```
 
 ---
