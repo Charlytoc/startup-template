@@ -3,6 +3,7 @@ import type { components } from "@/lib/api/schema";
 export const TOKEN_KEY = "startup_template_token";
 export const USER_KEY = "startup_template_user";
 export const SELECTED_ORG_ID_KEY = "startup_template_selected_org_id";
+export const SELECTED_WORKSPACE_ID_KEY = "startup_template_selected_workspace_id";
 /** Must match `django/core/services/auth.py` ORGANIZATION_HEADER */
 export const ORGANIZATION_HEADER = "X-Org-Id";
 

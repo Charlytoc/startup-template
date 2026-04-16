@@ -7,6 +7,9 @@ from core.admin.organization_member import OrganizationMemberAdmin
 from core.admin.role import RoleAdmin
 from core.admin.user import UserAdmin
 from core.admin.workspace import WorkspaceAdmin
+from core.admin.cyber_identity import CyberIdentityAdmin
+from core.admin.identity_type import IdentityTypeAdmin
+from core.admin.media_object import MediaObjectAdmin
 from core.admin.workspace_member import WorkspaceMemberAdmin
 from core.models import (
     AgentSessionLog,
@@ -17,6 +20,9 @@ from core.models import (
     User,
     Workspace,
     WorkspaceMember,
+    MediaObject,
+    IdentityType,
+    CyberIdentity,
 )
 
 admin.site.register(User, UserAdmin)
@@ -25,5 +31,8 @@ admin.site.register(OrganizationMember, OrganizationMemberAdmin)
 admin.site.register(Role, RoleAdmin)
 admin.site.register(Workspace, WorkspaceAdmin)
 admin.site.register(WorkspaceMember, WorkspaceMemberAdmin)
+admin.site.register(MediaObject, MediaObjectAdmin)
+admin.site.register(IdentityType, IdentityTypeAdmin)
+admin.site.register(CyberIdentity, CyberIdentityAdmin)
 admin.site.register(ApiToken, ApiTokenAdmin)
 # admin.site.register(AgentSessionLog, AgentSessionLogAdmin)

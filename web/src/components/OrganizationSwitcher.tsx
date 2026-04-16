@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Group, Loader, Select, Text } from "@mantine/core";
+import { highlightedSelectOptionProps } from "@/components/highlighted-select-option";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalStorage } from "@mantine/hooks";
 import { fetchMyOrganizations } from "@/lib/my-organizations";
@@ -94,6 +95,7 @@ export function OrganizationSwitcher() {
       allowDeselect={false}
       clearable={false}
       comboboxProps={{ withinPortal: true, zIndex: 400 }}
+      {...highlightedSelectOptionProps}
     />
   );
 }

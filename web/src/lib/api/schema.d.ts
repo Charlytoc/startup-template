@@ -135,6 +135,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Workspaces */
+        get: operations["core_routers_workspaces_list_workspaces"];
+        put?: never;
+        /** Create Workspace */
+        post: operations["core_routers_workspaces_create_workspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -219,6 +237,20 @@ export interface components {
         AgenticChatMessageRequest: {
             /** Message */
             message: string;
+        };
+        /** WorkspaceResponse */
+        WorkspaceResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Organization Id */
+            organization_id: string;
+        };
+        /** WorkspaceCreateRequest */
+        WorkspaceCreateRequest: {
+            /** Name */
+            name: string;
         };
     };
     responses: never;
@@ -446,6 +478,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgenticChatMessageResponse"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_list_workspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_create_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
                 };
             };
         };

@@ -18,8 +18,10 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import {
   SELECTED_ORG_ID_KEY,
+  SELECTED_WORKSPACE_ID_KEY,
   TOKEN_KEY,
   USER_KEY,
   readStoredAuth,
@@ -42,6 +44,11 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
   });
   const [, , removeSelectedOrg] = useLocalStorage<string | null>({
     key: SELECTED_ORG_ID_KEY,
+    defaultValue: null,
+    getInitialValueInEffect: true,
+  });
+  const [, , removeSelectedWorkspace] = useLocalStorage<number | null>({
+    key: SELECTED_WORKSPACE_ID_KEY,
     defaultValue: null,
     getInitialValueInEffect: true,
   });
@@ -89,6 +96,7 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
     removeToken();
     removeUser();
     removeSelectedOrg();
+    removeSelectedWorkspace();
     router.push("/");
   }
 
@@ -161,6 +169,19 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
           href="/chat"
           label="Chat"
           active={pathname === "/chat"}
+          onClick={() => closeMobileNav()}
+        />
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase" mt="md" mb={4} px="xs">
+          Workspace
+        </Text>
+        <Box mb="xs">
+          <WorkspaceSwitcher />
+        </Box>
+        <NavLink
+          component={Link}
+          href="/workspace"
+          label="Workspace home"
+          active={pathname === "/workspace" || pathname?.startsWith("/workspace/")}
           onClick={() => closeMobileNav()}
         />
       </AppShell.Navbar>
