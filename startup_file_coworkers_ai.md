@@ -292,7 +292,7 @@ Organization
 ### Example: influencer posting flow
 
 1. `TaskTemplate`: "Create and publish a gym post"
-2. `TaskAssignment`: run daily at 7am for Instagram account X
+2. `TaskAssignment`: run daily at 7am for Instagr`am account X
 3. `TaskExecution`: today’s concrete run
 4. `TaskParticipant`: researcher identity + copywriter identity + publisher identity
 5. `Artifact`: generated image(s) for the post

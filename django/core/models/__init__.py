@@ -7,8 +7,9 @@ from .workspace_member import WorkspaceMember
 from .api_token import ApiToken
 from .agent_session_log import AgentSessionLog
 from .media_object import MediaObject
-from .identity_type import IdentityType
 from .cyber_identity import CyberIdentity
+from .memory import Memory
+from .identity_asset import IdentityAsset
 
 __all__ = [
     "User",
@@ -20,6 +21,7 @@ __all__ = [
     "ApiToken",
     "AgentSessionLog",
     "MediaObject",
-    "IdentityType",
     "CyberIdentity",
+    "Memory",
+    "IdentityAsset",
 ]

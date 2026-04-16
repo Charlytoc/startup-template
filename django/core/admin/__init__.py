@@ -2,27 +2,29 @@ from django.contrib import admin
 
 from core.admin.agent_session_log import AgentSessionLogAdmin
 from core.admin.api_token import ApiTokenAdmin
+from core.admin.cyber_identity import CyberIdentityAdmin
+from core.admin.identity_asset import IdentityAssetAdmin
+from core.admin.media_object import MediaObjectAdmin
+from core.admin.memory import MemoryAdmin
 from core.admin.organization import OrganizationAdmin
 from core.admin.organization_member import OrganizationMemberAdmin
 from core.admin.role import RoleAdmin
 from core.admin.user import UserAdmin
 from core.admin.workspace import WorkspaceAdmin
-from core.admin.cyber_identity import CyberIdentityAdmin
-from core.admin.identity_type import IdentityTypeAdmin
-from core.admin.media_object import MediaObjectAdmin
 from core.admin.workspace_member import WorkspaceMemberAdmin
 from core.models import (
     AgentSessionLog,
     ApiToken,
+    CyberIdentity,
+    IdentityAsset,
+    MediaObject,
+    Memory,
     Organization,
     OrganizationMember,
     Role,
     User,
     Workspace,
     WorkspaceMember,
-    MediaObject,
-    IdentityType,
-    CyberIdentity,
 )
 
 admin.site.register(User, UserAdmin)
@@ -32,7 +34,8 @@ admin.site.register(Role, RoleAdmin)
 admin.site.register(Workspace, WorkspaceAdmin)
 admin.site.register(WorkspaceMember, WorkspaceMemberAdmin)
 admin.site.register(MediaObject, MediaObjectAdmin)
-admin.site.register(IdentityType, IdentityTypeAdmin)
 admin.site.register(CyberIdentity, CyberIdentityAdmin)
+admin.site.register(Memory, MemoryAdmin)
+admin.site.register(IdentityAsset, IdentityAssetAdmin)
 admin.site.register(ApiToken, ApiTokenAdmin)
-# admin.site.register(AgentSessionLog, AgentSessionLogAdmin)
+admin.site.register(AgentSessionLog, AgentSessionLogAdmin)
