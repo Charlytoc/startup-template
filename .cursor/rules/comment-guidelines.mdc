@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+
+# Comment guidelines
+
+Comments (including docstrings, inline code comments, and model/field `help_text`) must earn their place. If the code is self-explanatory, do not add a comment.
+
+## Do not write
+
+- Narrating comments that restate what the code obviously does (e.g. `// increment counter`, `# import the model`, `# return the result`).
+- Speculative / aspirational notes such as "suggested shape", "in the future we'll...", "for now...", "we can define later", "TODO: refactor this someday".
+- Multi-line JSON/shape sketches inside docstrings or `help_text` describing hypothetical future payloads. Shapes belong in the pydantic schema (or equivalent typed source of truth) at the service layer, not in model strings.
+- Change-log style comments explaining what was edited or why it used to be different.
+- Redundant section banners (`# ---- Fields ----`, `# helpers`) when the structure is already clear.
+- Comments that duplicate the field name in prose (e.g. `help_text="The name of the user"` on a field called `name`).
+
+## Do write
+
+- Explanations of non-obvious intent, trade-offs, invariants, or constraints the code alone cannot convey.
+- Warnings about gotchas, concurrency, security, or ordering requirements a future reader would miss.
+- Links to tickets, RFCs, or external docs when a decision was driven by them.
+- `help_text` that describes what a field *is* (its meaning and role), not what the field *might eventually contain*.
+
+## Style
+
+- Keep comments short and present-tense. Describe the current behavior, not the history.
+- Prefer improving names and types over adding explanatory comments.
+- Never use comments to communicate with the user during an edit session; say it in the chat response instead.
+
+This rule applies to every directory in the repository (Django, Next.js/web, scripts, docs configuration, etc.).

@@ -12,6 +12,11 @@ from .memory import Memory
 from .identity_asset import IdentityAsset
 from .integration_account import IntegrationAccount
 from .integration_bridge import IntegrationBridge
+from .integration_event import IntegrationEvent
+from .task_template import TaskTemplate
+from .task_assignment import TaskAssignment
+from .task_execution import TaskExecution
+from .artifact import Artifact
 
 __all__ = [
     "User",
@@ -28,4 +33,9 @@ __all__ = [
     "IdentityAsset",
     "IntegrationAccount",
     "IntegrationBridge",
+    "IntegrationEvent",
+    "TaskTemplate",
+    "TaskAssignment",
+    "TaskExecution",
+    "Artifact",
 ]

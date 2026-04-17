@@ -2,30 +2,40 @@ from django.contrib import admin
 
 from core.admin.agent_session_log import AgentSessionLogAdmin
 from core.admin.api_token import ApiTokenAdmin
+from core.admin.artifact import ArtifactAdmin
 from core.admin.cyber_identity import CyberIdentityAdmin
 from core.admin.identity_asset import IdentityAssetAdmin
 from core.admin.integration_account import IntegrationAccountAdmin
 from core.admin.integration_bridge import IntegrationBridgeAdmin
+from core.admin.integration_event import IntegrationEventAdmin
 from core.admin.media_object import MediaObjectAdmin
 from core.admin.memory import MemoryAdmin
 from core.admin.organization import OrganizationAdmin
 from core.admin.organization_member import OrganizationMemberAdmin
 from core.admin.role import RoleAdmin
+from core.admin.task_assignment import TaskAssignmentAdmin
+from core.admin.task_execution import TaskExecutionAdmin
+from core.admin.task_template import TaskTemplateAdmin
 from core.admin.user import UserAdmin
 from core.admin.workspace import WorkspaceAdmin
 from core.admin.workspace_member import WorkspaceMemberAdmin
 from core.models import (
     AgentSessionLog,
     ApiToken,
+    Artifact,
     CyberIdentity,
     IdentityAsset,
     IntegrationAccount,
     IntegrationBridge,
+    IntegrationEvent,
     MediaObject,
     Memory,
     Organization,
     OrganizationMember,
     Role,
+    TaskAssignment,
+    TaskExecution,
+    TaskTemplate,
     User,
     Workspace,
     WorkspaceMember,
@@ -43,5 +53,10 @@ admin.site.register(Memory, MemoryAdmin)
 admin.site.register(IdentityAsset, IdentityAssetAdmin)
 admin.site.register(IntegrationAccount, IntegrationAccountAdmin)
 admin.site.register(IntegrationBridge, IntegrationBridgeAdmin)
+admin.site.register(IntegrationEvent, IntegrationEventAdmin)
+admin.site.register(TaskTemplate, TaskTemplateAdmin)
+admin.site.register(TaskAssignment, TaskAssignmentAdmin)
+admin.site.register(TaskExecution, TaskExecutionAdmin)
+admin.site.register(Artifact, ArtifactAdmin)
 admin.site.register(ApiToken, ApiTokenAdmin)
 admin.site.register(AgentSessionLog, AgentSessionLogAdmin)
