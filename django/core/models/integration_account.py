@@ -119,6 +119,16 @@ class IntegrationAccount(TimeStampedModel):
         super().clean()
         if self.config is not None and not isinstance(self.config, dict):
             raise ValidationError({"config": "Must be a JSON object (dict)."})
+        if self.config and "approved_senders" in self.config:
+            senders = self.config["approved_senders"]
+            if senders is not None:
+                if not isinstance(senders, list):
+                    raise ValidationError({"config": "approved_senders must be a list."})
+                for item in senders:
+                    if not isinstance(item, str) or not item.strip():
+                        raise ValidationError(
+                            {"config": "approved_senders must be a list of non-empty strings (Telegram user ids)."}
+                        )
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         self.full_clean()

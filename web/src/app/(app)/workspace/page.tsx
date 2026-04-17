@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import {
+  Button,
+  Card,
   Center,
   Container,
   Loader,
@@ -135,6 +138,24 @@ export default function WorkspacePage() {
                   No workspace selected yet. Use the sidebar to create one or pick an existing workspace.
                 </Text>
               )}
+              {activeWorkspace ? (
+                <Card withBorder radius="md" p="md" mt="md">
+                  <Stack gap="xs">
+                    <Title order={4}>Integrations</Title>
+                    <Text size="sm" c="dimmed">
+                      View connected accounts (Telegram, and more later) or add a new integration.
+                    </Text>
+                    <Button
+                      component={Link}
+                      href={`/workspaces/${activeWorkspace.id}/integrations`}
+                      variant="light"
+                      w="fit-content"
+                    >
+                      View integrations
+                    </Button>
+                  </Stack>
+                </Card>
+              ) : null}
             </>
           )}
         </Stack>

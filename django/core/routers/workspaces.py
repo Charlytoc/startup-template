@@ -1,8 +1,12 @@
+import uuid
+from datetime import datetime
+
 from django.db import transaction
 from django.utils import timezone
 from ninja import Router, Schema
+from ninja.errors import HttpError
 
-from core.models import Role, Workspace, WorkspaceMember
+from core.models import IntegrationAccount, Role, Workspace, WorkspaceMember
 from core.services.auth import ApiKeyAuth
 from core.utils.schemas import ErrorResponseSchema
 
@@ -38,6 +42,56 @@ def _default_member_role(request):
         },
     )
     return role
+
+
+def _workspace_for_member(request, workspace_id: int) -> Workspace:
+    org = request.organization
+    workspace = Workspace.objects.filter(id=workspace_id, organization=org).first()
+    if workspace is None:
+        raise HttpError(404, "Workspace not found.")
+    member = WorkspaceMember.objects.filter(
+        user=request.user,
+        workspace=workspace,
+        status=WorkspaceMember.Status.ACTIVE,
+    ).first()
+    if member is None:
+        raise HttpError(403, "You are not an active member of this workspace.")
+    return workspace
+
+
+class IntegrationAccountListItem(Schema):
+    id: uuid.UUID
+    provider: str
+    display_name: str
+    status: str
+    external_account_id: str
+    created: datetime
+
+
+@router.get(
+    "/{workspace_id}/integrations/",
+    response={
+        200: list[IntegrationAccountListItem],
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+    },
+    auth=ApiKeyAuth(require_active_organization=True),
+)
+def list_workspace_integrations(request, workspace_id: int):
+    workspace = _workspace_for_member(request, workspace_id)
+    rows = IntegrationAccount.objects.filter(workspace=workspace).order_by("-created")
+    return 200, [
+        IntegrationAccountListItem(
+            id=row.id,
+            provider=row.provider,
+            display_name=row.display_name or "",
+            status=row.status,
+            external_account_id=row.external_account_id,
+            created=row.created,
+        )
+        for row in rows
+    ]
 
 
 @router.get("", response={200: list[WorkspaceResponse], 401: ErrorResponseSchema}, auth=ApiKeyAuth(require_active_organization=True))

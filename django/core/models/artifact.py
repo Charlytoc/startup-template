@@ -1,4 +1,4 @@
-"""Output file produced by a ``TaskExecution`` (generated image, rendered report, etc.)."""
+"""Output file produced during a ``TaskExecution`` (generated image, rendered report, etc.)."""
 
 from __future__ import annotations
 

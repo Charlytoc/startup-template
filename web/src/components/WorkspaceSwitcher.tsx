@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Button, Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { highlightedSelectOptionProps } from "@/components/highlighted-select-option";
 import { useDisclosure, useLocalStorage } from "@mantine/hooks";
@@ -12,8 +13,20 @@ import {
   TOKEN_KEY,
 } from "@/lib/auth-storage";
 
+function rewriteWorkspaceScopedPath(pathname: string | null, newWorkspaceId: number): string | null {
+  if (!pathname) return null;
+  const match = pathname.match(/^\/workspaces\/(\d+)(\/.*)?$/);
+  if (!match) return null;
+  const currentId = match[1];
+  if (currentId === String(newWorkspaceId)) return null;
+  const rest = match[2] ?? "";
+  return `/workspaces/${newWorkspaceId}${rest}`;
+}
+
 export function WorkspaceSwitcher() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
   const [token] = useLocalStorage<string | null>({
     key: TOKEN_KEY,
     defaultValue: null,
@@ -129,7 +142,12 @@ export function WorkspaceSwitcher() {
               value={selectedWorkspaceId != null ? String(selectedWorkspaceId) : null}
               onChange={(v) => {
                 if (v == null) return;
-                setSelectedWorkspaceId(Number(v));
+                const newId = Number(v);
+                setSelectedWorkspaceId(newId);
+                const target = rewriteWorkspaceScopedPath(pathname, newId);
+                if (target) {
+                  router.push(target);
+                }
               }}
               allowDeselect={false}
               clearable={false}

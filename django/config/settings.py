@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,15 +27,21 @@ SECRET_KEY = "django-insecure--h81)azs_smaks)96e8+9e&-i-g+=k-%s$7@ygr#pv=#o!$!m3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
+_django_port = os.getenv("DJANGO_PORT", "8000")
+SITE_URL = os.getenv("SITE_URL", f"http://127.0.0.1:{_django_port}").rstrip("/")
+
+_base_allowed_hosts = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
     "django",
     "1gm40gnb-8000.use2.devtunnels.ms",
 ]
+_extra_allowed_hosts = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
+_site_hostname = urlparse(SITE_URL).hostname
+_site_allowed = [_site_hostname] if _site_hostname else []
+ALLOWED_HOSTS = list(dict.fromkeys(_base_allowed_hosts + _extra_allowed_hosts + _site_allowed))
 
- 
 # Application definition
 
 INSTALLED_APPS = [
@@ -205,6 +212,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # ``IntegrationAccount.encrypted_auth``. Generate with:
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 INTEGRATION_ENCRYPTION_KEY = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
+
+# TTL for pending Telegram sender approval codes (cache only).
+TELEGRAM_APPROVAL_CACHE_TTL = int(os.getenv("TELEGRAM_APPROVAL_CACHE_TTL", "3600"))
 
 # Media files configuration
 MEDIA_URL = '/media/'

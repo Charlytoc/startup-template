@@ -181,7 +181,11 @@ export function AppShellLayout({ children }: { children: React.ReactNode }) {
           component={Link}
           href="/workspace"
           label="Workspace home"
-          active={pathname === "/workspace" || pathname?.startsWith("/workspace/")}
+          active={
+            pathname === "/workspace" ||
+            pathname?.startsWith("/workspace/") ||
+            pathname?.startsWith("/workspaces/")
+          }
           onClick={() => closeMobileNav()}
         />
       </AppShell.Navbar>

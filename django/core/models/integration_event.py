@@ -16,8 +16,8 @@ class IntegrationEvent(TimeStampedModel):
     """
     Single inbound event received from an ``IntegrationAccount``.
 
-    Stored verbatim so event dispatching and replay (triggering ``TaskExecution`` rows) can
-    be built in a later iteration without replaying from the provider.
+    Stored verbatim so event dispatching and replay (firing ``JobAssignment`` runs via
+    ``TaskExecution``) can be built later without replaying from the provider.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
