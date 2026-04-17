@@ -4,6 +4,8 @@ from core.admin.agent_session_log import AgentSessionLogAdmin
 from core.admin.api_token import ApiTokenAdmin
 from core.admin.cyber_identity import CyberIdentityAdmin
 from core.admin.identity_asset import IdentityAssetAdmin
+from core.admin.integration_account import IntegrationAccountAdmin
+from core.admin.integration_bridge import IntegrationBridgeAdmin
 from core.admin.media_object import MediaObjectAdmin
 from core.admin.memory import MemoryAdmin
 from core.admin.organization import OrganizationAdmin
@@ -17,6 +19,8 @@ from core.models import (
     ApiToken,
     CyberIdentity,
     IdentityAsset,
+    IntegrationAccount,
+    IntegrationBridge,
     MediaObject,
     Memory,
     Organization,
@@ -37,5 +41,7 @@ admin.site.register(MediaObject, MediaObjectAdmin)
 admin.site.register(CyberIdentity, CyberIdentityAdmin)
 admin.site.register(Memory, MemoryAdmin)
 admin.site.register(IdentityAsset, IdentityAssetAdmin)
+admin.site.register(IntegrationAccount, IntegrationAccountAdmin)
+admin.site.register(IntegrationBridge, IntegrationBridgeAdmin)
 admin.site.register(ApiToken, ApiTokenAdmin)
 admin.site.register(AgentSessionLog, AgentSessionLogAdmin)

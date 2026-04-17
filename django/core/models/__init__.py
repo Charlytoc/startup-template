@@ -10,6 +10,8 @@ from .media_object import MediaObject
 from .cyber_identity import CyberIdentity
 from .memory import Memory
 from .identity_asset import IdentityAsset
+from .integration_account import IntegrationAccount
+from .integration_bridge import IntegrationBridge
 
 __all__ = [
     "User",
@@ -24,4 +26,6 @@ __all__ = [
     "CyberIdentity",
     "Memory",
     "IdentityAsset",
+    "IntegrationAccount",
+    "IntegrationBridge",
 ]

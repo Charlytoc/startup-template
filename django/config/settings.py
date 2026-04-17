@@ -201,6 +201,11 @@ CORS_ALLOW_HEADERS = [
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# Fernet key (urlsafe base64, 32 bytes) used to encrypt sensitive JSON blobs such as
+# ``IntegrationAccount.encrypted_auth``. Generate with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+INTEGRATION_ENCRYPTION_KEY = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
+
 # Media files configuration
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
