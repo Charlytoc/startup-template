@@ -29,7 +29,7 @@ import {
   type AuthUser,
 } from "@/lib/auth-storage";
 import { fetchWorkspaces } from "@/lib/my-workspaces";
-import { approveTelegramSender } from "@/lib/telegram-integration";
+import { approveTelegramSender, disconnectTelegramIntegration } from "@/lib/telegram-integration";
 import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 
 export default function WorkspaceIntegrationsPage() {
@@ -70,6 +70,7 @@ export default function WorkspaceIntegrationsPage() {
   const [approvalCode, setApprovalCode] = useState("");
   const [approveError, setApproveError] = useState<string | null>(null);
   const [approveSuccess, setApproveSuccess] = useState<string | null>(null);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   useEffect(() => {
     const { user: stored } = readStoredAuth();
@@ -124,6 +125,26 @@ export default function WorkspaceIntegrationsPage() {
       return telegramIntegrations[0]?.id ?? null;
     });
   }, [telegramIntegrations]);
+
+  const disconnectMutation = useMutation({
+    mutationFn: (integrationAccountId: string) =>
+      disconnectTelegramIntegration(token!, orgId!, workspaceId, integrationAccountId),
+    onSuccess: async () => {
+      setDisconnectError(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["workspace-integrations", token, orgId, workspaceId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["workspace-actionables", token, orgId, workspaceId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["job-assignments", token, orgId, workspaceId],
+      });
+    },
+    onError: (err: Error) => {
+      setDisconnectError(err.message);
+    },
+  });
 
   const approveMutation = useMutation({
     mutationFn: () =>
@@ -237,6 +258,12 @@ export default function WorkspaceIntegrationsPage() {
           </Alert>
         ) : null}
 
+        {disconnectError ? (
+          <Alert color="red" title="Could not disconnect" onClose={() => setDisconnectError(null)} withCloseButton>
+            {disconnectError}
+          </Alert>
+        ) : null}
+
         <Paper withBorder radius="md" p="lg">
           {intPending ? (
             <Center py="xl">
@@ -260,6 +287,7 @@ export default function WorkspaceIntegrationsPage() {
                   <Table.Th>Status</Table.Th>
                   <Table.Th>External id</Table.Th>
                   <Table.Th>Created</Table.Th>
+                  <Table.Th style={{ width: 120 }}>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -275,6 +303,33 @@ export default function WorkspaceIntegrationsPage() {
                     </Table.Td>
                     <Table.Td>
                       <Text size="xs">{new Date(row.created).toLocaleString()}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.provider === "telegram" ? (
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          loading={disconnectMutation.isPending}
+                          disabled={!token || orgId == null}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Disconnect ${row.display_name || "this Telegram bot"}? Webhooks will be removed and the bot will stop receiving events here.`,
+                              )
+                            ) {
+                              setDisconnectError(null);
+                              disconnectMutation.mutate(row.id);
+                            }
+                          }}
+                        >
+                          Disconnect
+                        </Button>
+                      ) : (
+                        <Text size="xs" c="dimmed">
+                          —
+                        </Text>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}

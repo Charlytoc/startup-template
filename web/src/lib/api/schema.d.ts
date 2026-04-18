@@ -135,6 +135,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/integrations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Workspace Integrations */
+        get: operations["core_routers_workspaces_list_workspace_integrations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/": {
         parameters: {
             query?: never;
@@ -153,7 +170,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/integrations/telegram/webhook/{webhook_path_token}": {
+    "/api/workspaces/{workspace_id}/cyber-identities/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Cyber Identities */
+        get: operations["core_routers_workspaces_list_cyber_identities"];
+        put?: never;
+        /** Create Cyber Identity */
+        post: operations["core_routers_workspaces_create_cyber_identity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/cyber-identities/{cyber_identity_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Cyber Identity */
+        delete: operations["core_routers_workspaces_delete_cyber_identity"];
+        options?: never;
+        head?: never;
+        /** Update Cyber Identity */
+        patch: operations["core_routers_workspaces_update_cyber_identity"];
+        trace?: never;
+    };
+    "/api/integrations/telegram/webhook/{webhook_path_token}/": {
         parameters: {
             query?: never;
             header?: never;
@@ -306,6 +359,27 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** IntegrationAccountListItem */
+        IntegrationAccountListItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Display Name */
+            display_name: string;
+            /** Status */
+            status: string;
+            /** External Account Id */
+            external_account_id: string;
+            /**
+             * Created
+             * Format: date-time
+             */
+            created: string;
+        };
         /** WorkspaceResponse */
         WorkspaceResponse: {
             /** Id */
@@ -319,6 +393,63 @@ export interface components {
         WorkspaceCreateRequest: {
             /** Name */
             name: string;
+        };
+        /** CyberIdentityResponse */
+        CyberIdentityResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Workspace Id */
+            workspace_id: number;
+            /** Type */
+            type: string;
+            /** Display Name */
+            display_name: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created
+             * Format: date-time
+             */
+            created: string;
+        };
+        /** CyberIdentityCreateRequest */
+        CyberIdentityCreateRequest: {
+            /** Type */
+            type: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Config
+             * @default {}
+             */
+            config: {
+                [key: string]: unknown;
+            };
+        };
+        /** CyberIdentityUpdateRequest */
+        CyberIdentityUpdateRequest: {
+            /** Type */
+            type?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** TelegramConnectResponse */
         TelegramConnectResponse: {
@@ -582,6 +713,55 @@ export interface operations {
             };
         };
     };
+    core_routers_workspaces_list_workspace_integrations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationAccountListItem"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
     core_routers_workspaces_list_workspaces: {
         parameters: {
             query?: never;
@@ -644,6 +824,228 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_list_cyber_identities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CyberIdentityResponse"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_create_cyber_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CyberIdentityCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CyberIdentityResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_delete_cyber_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+                cyber_identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_update_cyber_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+                cyber_identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CyberIdentityUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CyberIdentityResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

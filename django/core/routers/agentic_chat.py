@@ -1,7 +1,8 @@
 from ninja import Router, Schema
+from ninja.security import django_auth
 
+from core.services.auth import ApiKeyAuth, auth_service
 from core.tasks.agentic_chat import run_agentic_chat
-from core.services.auth import ApiKeyAuth
 
 router = Router(tags=["AgenticChat"])
 
@@ -14,7 +15,7 @@ class AgenticChatMessageResponse(Schema):
     status: str
 
 
-@router.get("/health", response={200: dict}, auth=ApiKeyAuth())
+@router.get("/health", response={200: dict}, auth=[ApiKeyAuth(), django_auth])
 def health(request):
     return 200, {"status": "ok", "service": "agentic-chat"}
 
@@ -22,8 +23,10 @@ def health(request):
 @router.post(
     "/messages",
     response={200: AgenticChatMessageResponse},
-    auth=ApiKeyAuth(require_active_organization=True),
+    auth=[ApiKeyAuth(), django_auth],
 )
 def send_message(request, data: AgenticChatMessageRequest):
-    run_agentic_chat.delay(request.user.id, data.message, request.organization.id)
+    user = auth_service.get_user_from_request(request)
+    org = auth_service.get_active_organization(request)
+    run_agentic_chat.delay(user.id, data.message, org.id)
     return 200, AgenticChatMessageResponse(status="processing")

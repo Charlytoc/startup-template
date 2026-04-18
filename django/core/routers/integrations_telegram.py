@@ -3,9 +3,10 @@ import uuid
 from django.http import HttpRequest, HttpResponse
 from ninja import Router, Schema
 from ninja.errors import HttpError
+from ninja.security import django_auth
 
 from core.models import IntegrationAccount, Workspace, WorkspaceMember
-from core.services.auth import ApiKeyAuth
+from core.services.auth import ApiKeyAuth, auth_service
 from core.services.telegram_bot import (
     approve_sender_code,
     connect_telegram_bot,
@@ -37,12 +38,13 @@ class TelegramApproveResponse(Schema):
 
 
 def _require_workspace(request, workspace_id: int) -> Workspace:
-    org = request.organization
+    user = auth_service.get_user_from_request(request)
+    org = auth_service.get_active_organization(request)
     workspace = Workspace.objects.filter(id=workspace_id, organization=org).first()
     if workspace is None:
         raise HttpError(404, "Workspace not found.")
     member = WorkspaceMember.objects.filter(
-        user=request.user,
+        user=user,
         workspace=workspace,
         status=WorkspaceMember.Status.ACTIVE,
     ).first()
@@ -66,14 +68,15 @@ def telegram_webhook(request: HttpRequest, webhook_path_token: str) -> HttpRespo
         403: ErrorResponseSchema,
         404: ErrorResponseSchema,
     },
-    auth=ApiKeyAuth(require_active_organization=True),
+    auth=[ApiKeyAuth(), django_auth],
 )
 def telegram_connect(request, workspace_id: int, data: TelegramConnectRequest):
     workspace = _require_workspace(request, workspace_id)
+    user = auth_service.get_user_from_request(request)
     try:
         account = connect_telegram_bot(
             workspace=workspace,
-            user=request.user,
+            user=user,
             bot_token=data.bot_token,
             display_name=data.display_name,
         )
@@ -94,7 +97,7 @@ def telegram_connect(request, workspace_id: int, data: TelegramConnectRequest):
         403: ErrorResponseSchema,
         404: ErrorResponseSchema,
     },
-    auth=ApiKeyAuth(require_active_organization=True),
+    auth=[ApiKeyAuth(), django_auth],
 )
 def telegram_approve_sender(request, workspace_id: int, data: TelegramApproveRequest):
     workspace = _require_workspace(request, workspace_id)
@@ -115,7 +118,7 @@ def telegram_approve_sender(request, workspace_id: int, data: TelegramApproveReq
 @router.delete(
     "/workspaces/{workspace_id}/telegram/{integration_account_id}",
     response={204: None, 401: ErrorResponseSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema},
-    auth=ApiKeyAuth(require_active_organization=True),
+    auth=[ApiKeyAuth(), django_auth],
 )
 def telegram_disconnect(request, workspace_id: int, integration_account_id: uuid.UUID):
     workspace = _require_workspace(request, workspace_id)

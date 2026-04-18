@@ -20,6 +20,7 @@ from core.models import IntegrationAccount, IntegrationEvent, Workspace
 TELEGRAM_API_BASE = "https://api.telegram.org"
 
 CONFIG_WEBHOOK_PATH_TOKEN = "webhook_path_token"
+CONFIG_APPROVED_SENDERS = "approved_senders"
 
 AUTH_BOT_TOKEN = "bot_token"
 AUTH_WEBHOOK_SECRET = "webhook_secret_token"
@@ -303,6 +304,7 @@ def connect_telegram_bot(
 
 
 def disconnect_telegram_bot(account: IntegrationAccount) -> None:
+    """Remove the Telegram integration row after dropping the webhook (hard delete)."""
     if account.provider != IntegrationAccount.Provider.TELEGRAM:
         raise ValueError("not a telegram integration")
     bot_token = get_bot_token(account)
@@ -311,9 +313,7 @@ def disconnect_telegram_bot(account: IntegrationAccount) -> None:
             telegram_delete_webhook(bot_token)
         except ValueError:
             pass
-    account.status = IntegrationAccount.Status.REVOKED
-    account.auth = {}
-    account.save()
+    account.delete()
 
 
 def approve_sender_code(*, account: IntegrationAccount, code: str) -> str:

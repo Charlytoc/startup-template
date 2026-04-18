@@ -139,22 +139,56 @@ export default function WorkspacePage() {
                 </Text>
               )}
               {activeWorkspace ? (
-                <Card withBorder radius="md" p="md" mt="md">
-                  <Stack gap="xs">
-                    <Title order={4}>Integrations</Title>
-                    <Text size="sm" c="dimmed">
-                      View connected accounts (Telegram, and more later) or add a new integration.
-                    </Text>
-                    <Button
-                      component={Link}
-                      href={`/workspaces/${activeWorkspace.id}/integrations`}
-                      variant="light"
-                      w="fit-content"
-                    >
-                      View integrations
-                    </Button>
-                  </Stack>
-                </Card>
+                <Stack gap="sm" mt="md">
+                  <Card withBorder radius="md" p="md">
+                    <Stack gap="xs">
+                      <Title order={4}>Integrations</Title>
+                      <Text size="sm" c="dimmed">
+                        View connected accounts (Telegram, and more later) or add a new integration.
+                      </Text>
+                      <Button
+                        component={Link}
+                        href={`/workspaces/${activeWorkspace.id}/integrations`}
+                        variant="light"
+                        w="fit-content"
+                      >
+                        View integrations
+                      </Button>
+                    </Stack>
+                  </Card>
+                  <Card withBorder radius="md" p="md">
+                    <Stack gap="xs">
+                      <Title order={4}>Cyber identities</Title>
+                      <Text size="sm" c="dimmed">
+                        Personas your agents take on (influencer, community manager, analyst, personal assistant).
+                      </Text>
+                      <Button
+                        component={Link}
+                        href={`/workspaces/${activeWorkspace.id}/cyber-identities`}
+                        variant="light"
+                        w="fit-content"
+                      >
+                        Manage identities
+                      </Button>
+                    </Stack>
+                  </Card>
+                  <Card withBorder radius="md" p="md">
+                    <Stack gap="xs">
+                      <Title order={4}>Job assignments</Title>
+                      <Text size="sm" c="dimmed">
+                        Define roles, triggers, and which actionables run against connected accounts.
+                      </Text>
+                      <Button
+                        component={Link}
+                        href={`/workspaces/${activeWorkspace.id}/job-assignments`}
+                        variant="light"
+                        w="fit-content"
+                      >
+                        Manage jobs
+                      </Button>
+                    </Stack>
+                  </Card>
+                </Stack>
               ) : null}
             </>
           )}

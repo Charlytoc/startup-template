@@ -83,9 +83,12 @@ def get_organization_response(org: Organization) -> OrganizationResponse:
 
 
 def get_auth_context(request):
-    if hasattr(request, "user") and request.user.is_authenticated:
-        return request.user, request.user.organization
-    return request.user, request.organization
+    from core.services.auth import auth_service
+
+    user = auth_service.get_user_from_request(request)
+    if user is None:
+        return None, None
+    return user, user.organization
 
 
 def ensure_primary_organization_membership(user: User) -> None:

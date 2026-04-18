@@ -70,3 +70,22 @@ export async function approveTelegramSender(
   }
   return response.json() as Promise<TelegramApproveResponse>;
 }
+
+export async function disconnectTelegramIntegration(
+  token: string,
+  organizationId: string,
+  workspaceId: number,
+  integrationAccountId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/integrations/telegram/workspaces/${workspaceId}/telegram/${integrationAccountId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token, organizationId),
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    const err = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(err?.error ?? `Failed to disconnect Telegram (${response.status})`);
+  }
+}

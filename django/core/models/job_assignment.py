@@ -20,12 +20,12 @@ class JobAssignment(TimeStampedModel):
 
         {
           "accounts": [<IntegrationAccount.id>, ...],
-          "identities": [<CyberIdentity.id>, ...],
+          "identities": [<CyberIdentity.id>, ...],  # required, min length 1
           "triggers": [
             {"type": "event"|"cron", "on": "<event_slug or cron>", "filter": {...}}
           ],
           "actions": [
-            {"actionable_id": <Actionable.id>}
+            {"actionable_slug": "telegram.send_message", "integration_account_id": "<uuid>"}
           ],
           "approval_policy": {...},
           "output_schema": {...}   # optional pydantic/json schema
