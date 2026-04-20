@@ -25,6 +25,13 @@ TELEGRAM_SEND_MESSAGE = Actionable(
     description="Send a text message from a connected Telegram bot to a chat id the agent already knows.",
 )
 
+INSTAGRAM_SEND_MESSAGE = Actionable(
+    slug="instagram.send_message",
+    provider="instagram",
+    name="Send Instagram DM",
+    description="Send a text direct message from a connected Instagram Business account to a conversation thread the agent already knows.",
+)
+
 
 TASKS_SCHEDULE_ONE_OFF = Actionable(
     slug="tasks.schedule_one_off",
@@ -62,6 +69,7 @@ ACTIONABLES: dict[str, Actionable] = {
     a.slug: a
     for a in (
         TELEGRAM_SEND_MESSAGE,
+        INSTAGRAM_SEND_MESSAGE,
         TASKS_SCHEDULE_ONE_OFF,
         TASKS_CREATE_RECURRING_JOB,
         SYSTEM_SEND_CHAT_MESSAGE,

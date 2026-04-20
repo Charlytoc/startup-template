@@ -675,6 +675,24 @@ def create_job_assignment(request, workspace_id: int, data: JobAssignmentCreateR
     return 201, _job_assignment_response(row)
 
 
+@router.get(
+    "/{workspace_id}/job-assignments/{job_assignment_id}/",
+    response={
+        200: JobAssignmentResponse,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+    },
+    auth=[ApiKeyAuth(), django_auth],
+)
+def get_job_assignment(request, workspace_id: int, job_assignment_id: uuid.UUID):
+    workspace = _workspace_for_member(request, workspace_id)
+    row = JobAssignment.objects.filter(id=job_assignment_id, workspace=workspace).first()
+    if row is None:
+        raise HttpError(404, "Job assignment not found.")
+    return 200, _job_assignment_response(row)
+
+
 @router.patch(
     "/{workspace_id}/job-assignments/{job_assignment_id}/",
     response={

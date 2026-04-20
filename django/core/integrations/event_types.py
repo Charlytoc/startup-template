@@ -23,10 +23,16 @@ TELEGRAM_PRIVATE_MESSAGE = IntegrationEventType(
     description="A private message was received by a connected Telegram bot from an approved sender.",
 )
 
+INSTAGRAM_DM_MESSAGE = IntegrationEventType(
+    slug="instagram.dm_message",
+    provider="instagram",
+    description="A direct message was received by a connected Instagram Business account.",
+)
+
 
 EVENT_TYPES: dict[str, IntegrationEventType] = {
     e.slug: e
-    for e in (TELEGRAM_PRIVATE_MESSAGE,)
+    for e in (TELEGRAM_PRIVATE_MESSAGE, INSTAGRAM_DM_MESSAGE)
 }
 
 

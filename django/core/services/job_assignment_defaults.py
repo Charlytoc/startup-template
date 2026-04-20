@@ -7,12 +7,13 @@ import logging
 from django.db import transaction
 
 from core.integrations.actionables import (
+    INSTAGRAM_SEND_MESSAGE,
     SYSTEM_SEND_CHAT_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
     TELEGRAM_SEND_MESSAGE,
 )
-from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
+from core.integrations.event_types import INSTAGRAM_DM_MESSAGE, TELEGRAM_PRIVATE_MESSAGE
 from core.models import CyberIdentity, IntegrationAccount, JobAssignment
 from core.schemas.job_assignment import (
     JobAssignmentAction,
@@ -236,6 +237,128 @@ and already confirmed it to the user in a previous `send_chat_message` call in t
 
 Never expose internal ids, tokens, or schemas to the user. Never promise to do something you cannot do.
 """
+
+
+DEFAULT_INSTAGRAM_ROLE_NAME = "Instagram DM Assistant"
+DEFAULT_INSTAGRAM_DESCRIPTION = (
+    "Default assistant that handles Instagram direct messages for this workspace. "
+    "Answers users, handles inquiries, and can schedule follow-ups."
+)
+DEFAULT_INSTAGRAM_INSTRUCTIONS = """\
+You are a helpful, friendly assistant reachable via Instagram Direct Messages.
+
+=== CRITICAL: HOW THE USER SEES YOUR WORDS ===
+The ONLY way the user ever receives anything from you is by calling the `send_instagram_message` tool.
+- Your plain textual output (the "final response" of this loop) is NEVER shown to the user. It is discarded.
+- If you want to say ANYTHING to the user — an answer, a clarifying question, a confirmation, an apology,
+  even a simple "ok" — you MUST emit it through `send_instagram_message`. No exceptions.
+- Do not assume there is some other UI. Instagram DMs is the only channel.
+
+You may (and should, when useful) send MULTIPLE messages in a single turn:
+- Call `send_instagram_message` once per logical message.
+- Prefer several short, clearly-scoped messages over one giant wall of text.
+
+After you have sent everything you need the user to read, THEN you can finish the turn (no tool call).
+Finishing the turn without having called `send_instagram_message` at least once means the user hears nothing,
+which is a bug. Never do that unless you truly have nothing to communicate.
+
+=== Style ===
+- Always reply in the same language the user writes in.
+- Be concise, warm, and conversational. Avoid corporate boilerplate.
+- When the user asks a question, answer it directly. If something is ambiguous, ask one clarifying
+  question (via `send_instagram_message`) before acting.
+
+=== Tools ===
+- `send_instagram_message`: Use this for EVERY user-facing sentence.
+- `schedule_one_off_task`: Use when the user asks for a one-off reminder or action in the future.
+- `create_recurring_job`: Use only when the user clearly wants a recurring routine.
+
+Never expose internal ids, tokens, or schemas to the user. Never promise to do something you cannot do.
+"""
+
+
+def _has_existing_job_for_instagram_account(account: IntegrationAccount) -> bool:
+    for job in JobAssignment.objects.filter(workspace=account.workspace).iterator():
+        try:
+            cfg = job.get_config()
+        except Exception:
+            continue
+        for act in cfg.actions:
+            if (
+                act.actionable_slug == INSTAGRAM_SEND_MESSAGE.slug
+                and act.integration_account_id == account.id
+            ):
+                return True
+    return False
+
+
+def ensure_default_job_assignment_for_instagram(
+    *, account: IntegrationAccount, user
+) -> JobAssignment | None:
+    """Create a sensible default ``JobAssignment`` for a freshly-connected Instagram account.
+
+    No-op if:
+    - ``account`` is not an Instagram account.
+    - A job already targets this account with ``instagram.send_message``.
+    """
+    if account.provider != IntegrationAccount.Provider.INSTAGRAM:
+        return None
+    if _has_existing_job_for_instagram_account(account):
+        return None
+
+    workspace = account.workspace
+    identity = _ensure_default_identity(workspace=workspace, user=user)
+
+    cfg = JobAssignmentConfig(
+        accounts=[
+            JobAssignmentConfigAccount(id=account.id, provider=account.provider),
+        ],
+        identities=[
+            JobAssignmentConfigIdentity(
+                id=identity.id,
+                type=identity.type,
+                config=identity.config or {},
+            ),
+        ],
+        triggers=[
+            JobAssignmentEventTrigger(
+                type="event",
+                on=INSTAGRAM_DM_MESSAGE.slug,
+                filter={},
+            ),
+        ],
+        actions=[
+            JobAssignmentAction(
+                actionable_slug=INSTAGRAM_SEND_MESSAGE.slug,
+                integration_account_id=account.id,
+            ),
+            JobAssignmentAction(
+                actionable_slug=TASKS_SCHEDULE_ONE_OFF.slug,
+                integration_account_id=None,
+            ),
+            JobAssignmentAction(
+                actionable_slug=TASKS_CREATE_RECURRING_JOB.slug,
+                integration_account_id=None,
+            ),
+        ],
+    )
+
+    with transaction.atomic():
+        job = JobAssignment(
+            workspace=workspace,
+            role_name=DEFAULT_INSTAGRAM_ROLE_NAME,
+            description=DEFAULT_INSTAGRAM_DESCRIPTION,
+            instructions=DEFAULT_INSTAGRAM_INSTRUCTIONS,
+            enabled=True,
+        )
+        job.set_config(cfg)
+        job.save()
+
+    logger.info(
+        "job_assignment_defaults: created default instagram job=%s account=%s identity=%s workspace=%s",
+        job.id, account.id, identity.id, workspace.id,
+    )
+    return job
 
 
 def find_web_chat_job_for_identity(identity: CyberIdentity) -> JobAssignment | None:

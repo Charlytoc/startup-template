@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Anchor,
   Button,
   Container,
+  Divider,
   Loader,
   Center,
   Paper,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/auth-storage";
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import { connectTelegramBot } from "@/lib/telegram-integration";
+import { getInstagramOAuthUrl } from "@/lib/instagram-integration";
 
 export default function ConnectIntegrationPage() {
   const router = useRouter();
@@ -64,9 +66,15 @@ export default function ConnectIntegrationPage() {
     getInitialValueInEffect: true,
   });
 
+  const searchParams = useSearchParams();
+
   const [botToken, setBotToken] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [igLoading, setIgLoading] = useState(false);
+  const [igError, setIgError] = useState<string | null>(
+    searchParams.get("instagram_error"),
+  );
 
   useEffect(() => {
     const { user: stored } = readStoredAuth();
@@ -92,6 +100,19 @@ export default function ConnectIntegrationPage() {
     }
     return workspaces.find((w) => w.id === workspaceId) ?? null;
   }, [workspaces, workspaceId]);
+
+  async function connectInstagram() {
+    if (!token || !orgId) return;
+    setIgError(null);
+    setIgLoading(true);
+    try {
+      const { oauth_url } = await getInstagramOAuthUrl(token, orgId, workspaceId);
+      window.location.href = oauth_url;
+    } catch (err) {
+      setIgError((err as Error).message);
+      setIgLoading(false);
+    }
+  }
 
   const connectMutation = useMutation({
     mutationFn: () =>
@@ -227,6 +248,42 @@ export default function ConnectIntegrationPage() {
               disabled={!botToken.trim()}
             >
               Connect Telegram bot
+            </Button>
+          </Stack>
+        </Paper>
+
+        <Paper withBorder radius="md" p="lg">
+          <Stack gap="md">
+            <Title order={3}>Instagram</Title>
+            <Text size="sm" c="dimmed">
+              Connect an Instagram Business or Creator account via Facebook Login. You will be
+              redirected to Meta to authorize the app, then brought back here automatically.
+              Make sure your Instagram account is linked to a Facebook Page.
+            </Text>
+            <Text size="xs" c="dimmed">
+              Need help?{" "}
+              <Anchor
+                href="https://help.instagram.com/502981923235522"
+                target="_blank"
+                rel="noreferrer"
+                size="xs"
+              >
+                How to switch to a Professional account
+              </Anchor>
+            </Text>
+            {igError ? (
+              <Alert color="red" title="Could not connect Instagram" onClose={() => setIgError(null)} withCloseButton>
+                {igError}
+              </Alert>
+            ) : null}
+            <Button
+              onClick={connectInstagram}
+              loading={igLoading}
+              disabled={!token || !orgId}
+              variant="gradient"
+              gradient={{ from: "grape", to: "pink", deg: 135 }}
+            >
+              Connect Instagram account
             </Button>
           </Stack>
         </Paper>

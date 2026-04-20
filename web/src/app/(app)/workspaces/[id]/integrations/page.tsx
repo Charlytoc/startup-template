@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/auth-storage";
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import { disconnectTelegramIntegration } from "@/lib/telegram-integration";
+import { disconnectInstagramIntegration } from "@/lib/instagram-integration";
 import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 
 export default function WorkspaceIntegrationsPage() {
@@ -64,7 +65,10 @@ export default function WorkspaceIntegrationsPage() {
     getInitialValueInEffect: true,
   });
 
+  const searchParams = useSearchParams();
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  const [igSuccess, setIgSuccess] = useState<boolean>(searchParams.get("instagram_connected") === "true");
+  const [igConnectError, setIgConnectError] = useState<string | null>(searchParams.get("instagram_error"));
 
   useEffect(() => {
     const { user: stored } = readStoredAuth();
@@ -102,24 +106,24 @@ export default function WorkspaceIntegrationsPage() {
     staleTime: 15_000,
   });
 
+  const invalidateIntegrations = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["workspace-integrations", token, orgId, workspaceId] });
+    await queryClient.invalidateQueries({ queryKey: ["workspace-actionables", token, orgId, workspaceId] });
+    await queryClient.invalidateQueries({ queryKey: ["job-assignments", token, orgId, workspaceId] });
+  };
+
   const disconnectMutation = useMutation({
     mutationFn: (integrationAccountId: string) =>
       disconnectTelegramIntegration(token!, orgId!, workspaceId, integrationAccountId),
-    onSuccess: async () => {
-      setDisconnectError(null);
-      await queryClient.invalidateQueries({
-        queryKey: ["workspace-integrations", token, orgId, workspaceId],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["workspace-actionables", token, orgId, workspaceId],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["job-assignments", token, orgId, workspaceId],
-      });
-    },
-    onError: (err: Error) => {
-      setDisconnectError(err.message);
-    },
+    onSuccess: async () => { setDisconnectError(null); await invalidateIntegrations(); },
+    onError: (err: Error) => { setDisconnectError(err.message); },
+  });
+
+  const disconnectIgMutation = useMutation({
+    mutationFn: (integrationAccountId: string) =>
+      disconnectInstagramIntegration(token!, orgId!, workspaceId, integrationAccountId),
+    onSuccess: async () => { setDisconnectError(null); await invalidateIntegrations(); },
+    onError: (err: Error) => { setDisconnectError(err.message); },
   });
 
   const displayUser = user ?? readStoredAuth().user;
@@ -208,6 +212,18 @@ export default function WorkspaceIntegrationsPage() {
           </Alert>
         ) : null}
 
+        {igSuccess ? (
+          <Alert color="green" title="Instagram connected" onClose={() => setIgSuccess(false)} withCloseButton>
+            Your Instagram Business account was connected successfully.
+          </Alert>
+        ) : null}
+
+        {igConnectError ? (
+          <Alert color="red" title="Instagram connection failed" onClose={() => setIgConnectError(null)} withCloseButton>
+            {igConnectError}
+          </Alert>
+        ) : null}
+
         {intError ? (
           <Alert color="red" title="Could not load integrations">
             {(intError as Error).message}
@@ -228,10 +244,10 @@ export default function WorkspaceIntegrationsPage() {
           ) : !integrations?.length ? (
             <Stack gap="sm">
               <Text c="dimmed" size="sm">
-                No integrations yet. Connect Telegram (or other providers later) to receive webhooks and run tasks.
+                No integrations yet. Connect Telegram or Instagram to receive messages and run tasks.
               </Text>
               <Button component={Link} href={`/workspaces/${workspaceId}/connect-integration`} variant="light" w="fit-content">
-                Connect Telegram
+                Add integration
               </Button>
             </Stack>
           ) : (
@@ -278,13 +294,25 @@ export default function WorkspaceIntegrationsPage() {
                             loading={disconnectMutation.isPending}
                             disabled={!token || orgId == null}
                             onClick={() => {
-                              if (
-                                confirm(
-                                  `Disconnect ${row.display_name || "this Telegram bot"}? Webhooks will be removed and the bot will stop receiving events here.`,
-                                )
-                              ) {
+                              if (confirm(`Disconnect ${row.display_name || "this Telegram bot"}? The bot will stop receiving events here.`)) {
                                 setDisconnectError(null);
                                 disconnectMutation.mutate(row.id);
+                              }
+                            }}
+                          >
+                            Disconnect
+                          </Button>
+                        ) : row.provider === "instagram" ? (
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            loading={disconnectIgMutation.isPending}
+                            disabled={!token || orgId == null}
+                            onClick={() => {
+                              if (confirm(`Disconnect ${row.display_name || "this Instagram account"}? It will stop receiving DMs here.`)) {
+                                setDisconnectError(null);
+                                disconnectIgMutation.mutate(row.id);
                               }
                             }}
                           >

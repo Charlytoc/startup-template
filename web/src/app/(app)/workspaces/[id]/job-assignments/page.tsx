@@ -35,20 +35,17 @@ import {
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 import { fetchCyberIdentities } from "@/lib/workspace-cyber-identities";
-import type { CyberIdentity } from "@/lib/workspace-cyber-identities";
 import {
+  actionKey,
+  buildActionsPayload,
+  buildIdentitiesPayload,
   createJobAssignment,
   deleteJobAssignment,
   fetchJobAssignments,
   fetchWorkspaceActionables,
   updateJobAssignment,
-  type ActionableCatalogRow,
   type JobAssignment,
 } from "@/lib/workspace-job-assignments";
-
-function actionKey(row: ActionableCatalogRow): string {
-  return `${row.slug}::${row.integration_account_id}`;
-}
 
 export default function WorkspaceJobAssignmentsPage() {
   const router = useRouter();
@@ -156,14 +153,8 @@ export default function WorkspaceJobAssignmentsPage() {
 
   const createMutation = useMutation({
     mutationFn: () => {
-      const actions = selectedActionKeys.map((key) => {
-        const [slug, integration_account_id] = key.split("::");
-        return { actionable_slug: slug, integration_account_id };
-      });
-      const identityPayload: Pick<CyberIdentity, "id" | "type" | "config">[] = selectedIdentityIds
-        .map((id) => identities?.find((i) => i.id === id))
-        .filter((row): row is CyberIdentity => Boolean(row))
-        .map((i) => ({ id: i.id, type: i.type, config: i.config ?? {} }));
+      const identityPayload = buildIdentitiesPayload(selectedIdentityIds, identities ?? []);
+      const actions = buildActionsPayload(selectedActionKeys);
       return createJobAssignment(token!, orgId!, workspaceId, {
         role_name: roleName.trim(),
         description: description.trim(),
@@ -219,7 +210,7 @@ export default function WorkspaceJobAssignmentsPage() {
     () =>
       (actionables ?? []).map((a) => ({
         value: actionKey(a),
-        label: `${a.name} — ${a.integration.display_name}`,
+        label: `${a.name} — ${a.integration?.display_name ?? "System"}`,
       })),
     [actionables],
   );
@@ -383,6 +374,7 @@ export default function WorkspaceJobAssignmentsPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Role</Table.Th>
+                  <Table.Th>Identities</Table.Th>
                   <Table.Th>Enabled</Table.Th>
                   <Table.Th>Actions</Table.Th>
                   <Table.Th>Created</Table.Th>
@@ -392,6 +384,11 @@ export default function WorkspaceJobAssignmentsPage() {
               <Table.Tbody>
                 {jobs.map((row) => {
                   const acts = (row.config.actions as unknown[]) ?? [];
+                  const idRows = row.config.identities ?? [];
+                  const identityLabels = idRows.map((ident) => {
+                    const found = identities?.find((i) => i.id === ident.id);
+                    return found?.display_name ?? ident.id.slice(0, 8);
+                  });
                   return (
                     <Table.Tr key={row.id}>
                       <Table.Td>
@@ -401,6 +398,20 @@ export default function WorkspaceJobAssignmentsPage() {
                             {row.description}
                           </Text>
                         ) : null}
+                      </Table.Td>
+                      <Table.Td>
+                        <Stack gap={2}>
+                          {identityLabels.slice(0, 3).map((label, i) => (
+                            <Badge key={i} size="sm" variant="outline">
+                              {label}
+                            </Badge>
+                          ))}
+                          {identityLabels.length > 3 ? (
+                            <Text size="xs" c="dimmed">
+                              +{identityLabels.length - 3} more
+                            </Text>
+                          ) : null}
+                        </Stack>
                       </Table.Td>
                       <Table.Td>
                         <Switch
@@ -432,20 +443,30 @@ export default function WorkspaceJobAssignmentsPage() {
                         <Text size="xs">{new Date(row.created).toLocaleString()}</Text>
                       </Table.Td>
                       <Table.Td>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          onClick={() => {
-                            if (confirm(`Delete job "${row.role_name}"?`)) {
-                              deleteMutation.mutate(row);
-                            }
-                          }}
-                          disabled={deleteMutation.isPending}
-                          aria-label="Delete"
-                          title="Delete"
-                        >
-                          ✕
-                        </ActionIcon>
+                        <Group gap={4} justify="flex-end">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            component={Link}
+                            href={`/workspaces/${workspaceId}/job-assignments/${row.id}`}
+                          >
+                            Open
+                          </Button>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => {
+                              if (confirm(`Delete job "${row.role_name}"?`)) {
+                                deleteMutation.mutate(row);
+                              }
+                            }}
+                            disabled={deleteMutation.isPending}
+                            aria-label="Delete"
+                            title="Delete"
+                          >
+                            ✕
+                          </ActionIcon>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   );

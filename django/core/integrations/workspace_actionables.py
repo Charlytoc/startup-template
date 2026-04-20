@@ -8,11 +8,12 @@ from ninja.errors import HttpError
 
 from core.integrations.actionables import (
     ACTIONABLES,
+    INSTAGRAM_SEND_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
     TELEGRAM_SEND_MESSAGE,
 )
-from core.integrations.event_types import EVENT_TYPES, TELEGRAM_PRIVATE_MESSAGE
+from core.integrations.event_types import EVENT_TYPES, INSTAGRAM_DM_MESSAGE, TELEGRAM_PRIVATE_MESSAGE
 from core.models import CyberIdentity, IntegrationAccount, Workspace
 from core.schemas.job_assignment import (
     JobAssignmentConfig,
@@ -41,6 +42,18 @@ def list_actionable_catalog_for_workspace(workspace: Workspace) -> list[dict[str
     for acc in accounts:
         if acc.provider == IntegrationAccount.Provider.TELEGRAM:
             a = ACTIONABLES[TELEGRAM_SEND_MESSAGE.slug]
+            out.append(
+                {
+                    "slug": a.slug,
+                    "name": a.name,
+                    "description": a.description,
+                    "provider": a.provider,
+                    "integration_account_id": str(acc.id),
+                    "integration": _account_row(acc),
+                }
+            )
+        elif acc.provider == IntegrationAccount.Provider.INSTAGRAM:
+            a = ACTIONABLES[INSTAGRAM_SEND_MESSAGE.slug]
             out.append(
                 {
                     "slug": a.slug,
@@ -130,10 +143,41 @@ def validate_job_assignment_config(
                     JobAssignmentConfigAccount(id=acc.id, provider=acc.provider)
                 )
                 seen_accounts.add(acc.id)
+        elif catalog.provider == "instagram":
+            if act.integration_account_id is None:
+                raise HttpError(400, f"Action {act.actionable_slug!r} requires integration_account_id.")
+            acc = IntegrationAccount.objects.filter(
+                id=act.integration_account_id, workspace=workspace
+            ).first()
+            if acc is None:
+                raise HttpError(
+                    400,
+                    f"integration_account_id for action {act.actionable_slug!r} is not in this workspace.",
+                )
+            if acc.provider != IntegrationAccount.Provider.INSTAGRAM:
+                raise HttpError(
+                    400, f"Action {act.actionable_slug!r} requires an Instagram integration account."
+                )
+            if acc.id not in seen_accounts:
+                config.accounts.append(
+                    JobAssignmentConfigAccount(id=acc.id, provider=acc.provider)
+                )
+                seen_accounts.add(acc.id)
 
-    if not config.triggers:
+    # Default trigger for Telegram-only jobs.
+    if not config.triggers and any(
+        a.actionable_slug == TELEGRAM_SEND_MESSAGE.slug for a in config.actions
+    ):
         config.triggers.append(
             JobAssignmentEventTrigger(type="event", on=TELEGRAM_PRIVATE_MESSAGE.slug, filter={})
+        )
+
+    # Default trigger for Instagram-only jobs.
+    if not config.triggers and any(
+        a.actionable_slug == INSTAGRAM_SEND_MESSAGE.slug for a in config.actions
+    ):
+        config.triggers.append(
+            JobAssignmentEventTrigger(type="event", on=INSTAGRAM_DM_MESSAGE.slug, filter={})
         )
 
     return config

@@ -228,6 +228,16 @@ INTEGRATION_ENCRYPTION_KEY = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
 # TTL for pending Telegram sender approval codes (cache only).
 TELEGRAM_APPROVAL_CACHE_TTL = int(os.getenv("TELEGRAM_APPROVAL_CACHE_TTL", "3600"))
 
+# Instagram / Meta App credentials.
+# Create a Meta App at https://developers.facebook.com/apps/
+INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID", "")
+INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET", "")
+# Set this to any static string you choose, then enter it in Meta App Dashboard → Webhooks → Verify Token.
+INSTAGRAM_WEBHOOK_VERIFY_TOKEN = os.getenv("INSTAGRAM_WEBHOOK_VERIFY_TOKEN", "")
+
+# Frontend URL used to redirect users back after the Instagram OAuth callback.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 # Media files configuration
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

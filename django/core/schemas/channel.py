@@ -28,7 +28,17 @@ class WebChatChannel(BaseModel):
     cyber_identity_id: UUID
 
 
+class InstagramDmChannel(BaseModel):
+    """A pre-bound Instagram DM thread (IG business account + sender IGSID)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: Literal["instagram_dm"]
+    integration_account_id: UUID
+    recipient_igsid: str
+
+
 Channel = Annotated[
-    TelegramPrivateChannel | WebChatChannel,
+    TelegramPrivateChannel | WebChatChannel | InstagramDmChannel,
     Field(discriminator="type"),
 ]
