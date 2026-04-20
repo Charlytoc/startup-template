@@ -295,20 +295,32 @@ export default function WorkspaceCyberIdentitiesPage() {
                       <Text size="xs">{new Date(row.created).toLocaleString()}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        onClick={() => {
-                          if (confirm(`Delete "${row.display_name}"?`)) {
-                            deleteMutation.mutate(row);
-                          }
-                        }}
-                        disabled={deleteMutation.isPending}
-                        aria-label="Delete"
-                        title="Delete"
-                      >
-                        ✕
-                      </ActionIcon>
+                      <Group gap={4} justify="flex-end">
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          component={Link}
+                          href={`/chat?identity=${row.id}`}
+                          disabled={!row.is_active}
+                          title={row.is_active ? "Chat as this identity" : "Activate first"}
+                        >
+                          Chat
+                        </Button>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          onClick={() => {
+                            if (confirm(`Delete "${row.display_name}"?`)) {
+                              deleteMutation.mutate(row);
+                            }
+                          }}
+                          disabled={deleteMutation.isPending}
+                          aria-label="Delete"
+                          title="Delete"
+                        >
+                          ✕
+                        </ActionIcon>
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}

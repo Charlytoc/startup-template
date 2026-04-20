@@ -303,6 +303,11 @@ def connect_telegram_bot(
         }
         account.save()
 
+        from core.services.job_assignment_defaults import (
+            ensure_default_job_assignment_for_telegram,
+        )
+        ensure_default_job_assignment_for_telegram(account=account, user=user)
+
     telegram_set_webhook(bot_token, webhook_url, webhook_secret)
 
     return account

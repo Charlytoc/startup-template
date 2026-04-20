@@ -1,9 +1,10 @@
 from django.contrib import admin
 
+from core.admin.json_viewer import PrettyJSONAdminMixin
 from core.models import IntegrationAccount
 
 
-class IntegrationAccountAdmin(admin.ModelAdmin):
+class IntegrationAccountAdmin(PrettyJSONAdminMixin, admin.ModelAdmin):
     list_display = (
         "display_name_or_external",
         "provider",

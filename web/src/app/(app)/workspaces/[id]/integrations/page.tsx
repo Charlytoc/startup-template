@@ -12,11 +12,9 @@ import {
   Group,
   Loader,
   Paper,
-  Select,
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
@@ -29,7 +27,7 @@ import {
   type AuthUser,
 } from "@/lib/auth-storage";
 import { fetchWorkspaces } from "@/lib/my-workspaces";
-import { approveTelegramSender, disconnectTelegramIntegration } from "@/lib/telegram-integration";
+import { disconnectTelegramIntegration } from "@/lib/telegram-integration";
 import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 
 export default function WorkspaceIntegrationsPage() {
@@ -66,10 +64,6 @@ export default function WorkspaceIntegrationsPage() {
     getInitialValueInEffect: true,
   });
 
-  const [selectedTelegramId, setSelectedTelegramId] = useState<string | null>(null);
-  const [approvalCode, setApprovalCode] = useState("");
-  const [approveError, setApproveError] = useState<string | null>(null);
-  const [approveSuccess, setApproveSuccess] = useState<string | null>(null);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,24 +102,6 @@ export default function WorkspaceIntegrationsPage() {
     staleTime: 15_000,
   });
 
-  const telegramIntegrations = useMemo(
-    () => (integrations ?? []).filter((i) => i.provider === "telegram"),
-    [integrations],
-  );
-
-  useEffect(() => {
-    if (!telegramIntegrations.length) {
-      setSelectedTelegramId(null);
-      return;
-    }
-    setSelectedTelegramId((prev) => {
-      if (prev && telegramIntegrations.some((t) => t.id === prev)) {
-        return prev;
-      }
-      return telegramIntegrations[0]?.id ?? null;
-    });
-  }, [telegramIntegrations]);
-
   const disconnectMutation = useMutation({
     mutationFn: (integrationAccountId: string) =>
       disconnectTelegramIntegration(token!, orgId!, workspaceId, integrationAccountId),
@@ -143,26 +119,6 @@ export default function WorkspaceIntegrationsPage() {
     },
     onError: (err: Error) => {
       setDisconnectError(err.message);
-    },
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: () =>
-      approveTelegramSender(token!, orgId!, workspaceId, {
-        integration_account_id: selectedTelegramId!,
-        code: approvalCode.replace(/\D/g, ""),
-      }),
-    onSuccess: async (data) => {
-      setApproveError(null);
-      setApproveSuccess(`Sender approved (Telegram user id: ${data.approved_telegram_user_id}).`);
-      setApprovalCode("");
-      await queryClient.invalidateQueries({
-        queryKey: ["workspace-integrations", token, orgId, workspaceId],
-      });
-    },
-    onError: (err: Error) => {
-      setApproveSuccess(null);
-      setApproveError(err.message);
     },
   });
 
@@ -287,7 +243,7 @@ export default function WorkspaceIntegrationsPage() {
                   <Table.Th>Status</Table.Th>
                   <Table.Th>External id</Table.Th>
                   <Table.Th>Created</Table.Th>
-                  <Table.Th style={{ width: 120 }}>Actions</Table.Th>
+                  <Table.Th style={{ width: 200 }}>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -305,31 +261,37 @@ export default function WorkspaceIntegrationsPage() {
                       <Text size="xs">{new Date(row.created).toLocaleString()}</Text>
                     </Table.Td>
                     <Table.Td>
-                      {row.provider === "telegram" ? (
+                      <Group gap={4}>
                         <Button
                           size="xs"
                           variant="subtle"
-                          color="red"
-                          loading={disconnectMutation.isPending}
-                          disabled={!token || orgId == null}
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `Disconnect ${row.display_name || "this Telegram bot"}? Webhooks will be removed and the bot will stop receiving events here.`,
-                              )
-                            ) {
-                              setDisconnectError(null);
-                              disconnectMutation.mutate(row.id);
-                            }
-                          }}
+                          component={Link}
+                          href={`/workspaces/${workspaceId}/integrations/${row.id}`}
                         >
-                          Disconnect
+                          View
                         </Button>
-                      ) : (
-                        <Text size="xs" c="dimmed">
-                          —
-                        </Text>
-                      )}
+                        {row.provider === "telegram" ? (
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            loading={disconnectMutation.isPending}
+                            disabled={!token || orgId == null}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Disconnect ${row.display_name || "this Telegram bot"}? Webhooks will be removed and the bot will stop receiving events here.`,
+                                )
+                              ) {
+                                setDisconnectError(null);
+                                disconnectMutation.mutate(row.id);
+                              }
+                            }}
+                          >
+                            Disconnect
+                          </Button>
+                        ) : null}
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -338,54 +300,7 @@ export default function WorkspaceIntegrationsPage() {
           )}
         </Paper>
 
-        {telegramIntegrations.length > 0 ? (
-          <Paper withBorder radius="md" p="lg">
-            <Stack gap="md">
-              <Title order={3}>Approve Telegram sender</Title>
-              <Text size="sm" c="dimmed">
-                When someone messages your bot for the first time, they get a 12-digit code. Choose the bot and enter
-                the code here.
-              </Text>
-              {approveError ? (
-                <Alert color="red" title="Could not approve">
-                  {approveError}
-                </Alert>
-              ) : null}
-              {approveSuccess ? (
-                <Alert color="green" title="Done">
-                  {approveSuccess}
-                </Alert>
-              ) : null}
-              <Select
-                label="Telegram integration"
-                data={telegramIntegrations.map((t) => ({
-                  value: t.id,
-                  label: `${t.display_name || t.external_account_id} (${t.status})`,
-                }))}
-                value={selectedTelegramId}
-                onChange={setSelectedTelegramId}
-                disabled={approveMutation.isPending}
-              />
-              <TextInput
-                label="12-digit approval code"
-                placeholder="000000000000"
-                value={approvalCode}
-                onChange={(e) => setApprovalCode(e.currentTarget.value)}
-                disabled={approveMutation.isPending}
-                maxLength={32}
-              />
-              <Button
-                onClick={() => approveMutation.mutate()}
-                loading={approveMutation.isPending}
-                disabled={!selectedTelegramId || approvalCode.replace(/\D/g, "").length !== 12}
-                variant="light"
-                w="fit-content"
-              >
-                Approve sender
-              </Button>
-            </Stack>
-          </Paper>
-        ) : null}
+        {/* Approve-sender flow now lives in the integration details page (/integrations/[accountId]). */}
       </Stack>
     </Container>
   );

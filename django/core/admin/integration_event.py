@@ -1,9 +1,10 @@
 from django.contrib import admin
 
+from core.admin.json_viewer import PrettyJSONAdminMixin
 from core.models import IntegrationEvent
 
 
-class IntegrationEventAdmin(admin.ModelAdmin):
+class IntegrationEventAdmin(PrettyJSONAdminMixin, admin.ModelAdmin):
     list_display = (
         "event_type",
         "integration_account",

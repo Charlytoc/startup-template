@@ -2,10 +2,11 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
   Avatar,
+  Badge,
   Box,
   Button,
   Center,
@@ -60,6 +61,8 @@ const REALTIME_URL = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:3
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const identityId = searchParams.get("identity");
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -326,18 +329,36 @@ export default function ChatPage() {
           flexShrink: 0,
         }}
       >
-        <Group gap="sm">
-          <Avatar color="blue" radius="xl" size="sm">
-            {userInitial}
-          </Avatar>
-          <Box>
-            <Text size="sm" fw={600} lh={1.2}>
-              AI Assistant
-            </Text>
-            <Text size="xs" c={status === "connected" || status.startsWith("Joined") ? "teal" : "dimmed"}>
-              {status.startsWith("Joined") ? "● Online" : status === "connected" ? "● Online" : "○ " + status}
-            </Text>
-          </Box>
+        <Group gap="sm" justify="space-between">
+          <Group gap="sm">
+            <Avatar color="blue" radius="xl" size="sm">
+              {userInitial}
+            </Avatar>
+            <Box>
+              <Text size="sm" fw={600} lh={1.2}>
+                AI Assistant
+              </Text>
+              <Text size="xs" c={status === "connected" || status.startsWith("Joined") ? "teal" : "dimmed"}>
+                {status.startsWith("Joined") ? "● Online" : status === "connected" ? "● Online" : "○ " + status}
+              </Text>
+            </Box>
+          </Group>
+          {identityId ? (
+            <Group gap="xs">
+              <Badge variant="light" color="violet" title={identityId}>
+                Identity: {identityId.slice(0, 8)}…
+              </Badge>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                onClick={() => router.replace("/chat")}
+                aria-label="Clear identity"
+                title="Clear identity context"
+              >
+                ✕
+              </ActionIcon>
+            </Group>
+          ) : null}
         </Group>
       </Box>
 
