@@ -58,6 +58,7 @@ def run_job_assignment_agent(
         return {"status": "skipped", "reason": "no_tools"}
 
     system_prompt = JobTaskProcessorAgent.build_system_prompt(job)
+    model = JobTaskProcessorAgent.model_for_job(job) or MODEL
 
     # The conversation already has the triggering user message persisted; pull all messages
     # as the loop history (oldest first).
@@ -68,7 +69,7 @@ def run_job_assignment_agent(
     log = AgentSessionLog.objects.create(
         user=None,
         celery_task_id=self.request.id,
-        model=MODEL,
+        model=model,
         provider=PROVIDER,
         instructions=system_prompt,
         tools=[t.tool.model_dump() for t in tools],
@@ -82,7 +83,7 @@ def run_job_assignment_agent(
             config=AgentConfig(
                 name=job.role_name[:80] or "Job agent",
                 system_prompt=system_prompt,
-                model=MODEL,
+                model=model,
             )
         )
         summary = agent.start_agent_loop(messages=loop_messages, tools=tools)

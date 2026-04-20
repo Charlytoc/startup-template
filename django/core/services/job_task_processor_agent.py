@@ -135,6 +135,23 @@ class JobTaskProcessorAgent:
         return matches[0] if matches else None
 
     @staticmethod
+    def model_for_job(job: JobAssignment) -> str | None:
+        """Return the first ``identity.config['model']`` found among the job's scoped identities."""
+        cfg = job.get_config()
+        for ident in cfg.identities:
+            model = (ident.config or {}).get("model")
+            if isinstance(model, str) and model.strip():
+                return model.strip()
+        id_list: list[uuid.UUID] = [ident.id for ident in cfg.identities]
+        if not id_list:
+            return None
+        for row in CyberIdentity.objects.filter(id__in=id_list, workspace=job.workspace):
+            model = (row.config or {}).get("model")
+            if isinstance(model, str) and model.strip():
+                return model.strip()
+        return None
+
+    @staticmethod
     def build_system_prompt(job: JobAssignment) -> str:
         cfg_model = job.get_config()
         id_list: list[uuid.UUID] = [ident.id for ident in cfg_model.identities]

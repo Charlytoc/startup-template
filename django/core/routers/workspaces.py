@@ -24,6 +24,7 @@ from core.models import (
     Workspace,
     WorkspaceMember,
 )
+from core.schemas.cyber_identity import CyberIdentityConfig
 from core.schemas.job_assignment import JobAssignmentConfig
 from core.services.auth import ApiKeyAuth, auth_service
 from core.services.job_assignment_defaults import (
@@ -411,6 +412,15 @@ def _validate_type(value: str) -> str:
     return value
 
 
+def _validate_cyber_identity_config(cfg: dict) -> dict:
+    try:
+        parsed = CyberIdentityConfig.model_validate(cfg or {})
+    except ValidationError as exc:
+        parts = [f"{list(e.get('loc', ()))}: {e.get('msg')}" for e in exc.errors()]
+        raise HttpError(400, "; ".join(parts) if parts else str(exc)) from exc
+    return parsed.model_dump(mode="json", exclude_none=False)
+
+
 @router.get(
     "/{workspace_id}/cyber-identities/",
     response={
@@ -451,7 +461,7 @@ def create_cyber_identity(request, workspace_id: int, data: CyberIdentityCreateR
         type=data.type,
         display_name=display_name[:200],
         is_active=data.is_active,
-        config=data.config or {},
+        config=_validate_cyber_identity_config(data.config or {}),
     )
     row.save()
     return 201, _cyber_identity_response(row)
@@ -490,7 +500,7 @@ def update_cyber_identity(
     if data.is_active is not None:
         row.is_active = data.is_active
     if data.config is not None:
-        row.config = data.config
+        row.config = _validate_cyber_identity_config(data.config)
     row.save()
     return 200, _cyber_identity_response(row)
 

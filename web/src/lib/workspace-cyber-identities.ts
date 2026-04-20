@@ -14,6 +14,12 @@ export const CYBER_IDENTITY_TYPE_OPTIONS: { value: CyberIdentityType; label: str
   { value: "personal_assistant", label: "Personal assistant" },
 ];
 
+export const CYBER_IDENTITY_MODEL_OPTIONS: { value: string; label: string }[] = [
+  { value: "gpt-5.4", label: "GPT-5.4 (gpt-5.4)" },
+  { value: "gpt-5.4-mini", label: "GPT-5.4-Mini (gpt-5.4-mini)" },
+  { value: "gpt-5.4-nano", label: "GPT-5.4-Nano (gpt-5.4-nano)" },
+];
+
 export type CyberIdentity = {
   id: string;
   workspace_id: number;

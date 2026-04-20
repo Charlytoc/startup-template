@@ -34,6 +34,7 @@ import {
 } from "@/lib/auth-storage";
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import {
+  CYBER_IDENTITY_MODEL_OPTIONS,
   CYBER_IDENTITY_TYPE_OPTIONS,
   createCyberIdentity,
   deleteCyberIdentity,
@@ -154,6 +155,55 @@ export default function WorkspaceCyberIdentitiesPage() {
     mutationFn: (row: CyberIdentity) =>
       deleteCyberIdentity(token!, orgId!, workspaceId, row.id),
     onSuccess: () => invalidate(),
+  });
+
+  const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
+  const [editForm, setEditForm] = useState<{
+    id: string;
+    type: CyberIdentityType;
+    display_name: string;
+    model: string;
+  } | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const startEdit = (row: CyberIdentity) => {
+    const currentModel =
+      typeof row.config?.model === "string" ? (row.config.model as string) : "";
+    setEditForm({
+      id: row.id,
+      type: row.type,
+      display_name: row.display_name,
+      model: currentModel,
+    });
+    setEditError(null);
+    openEdit();
+  };
+
+  const editMutation = useMutation({
+    mutationFn: () => {
+      if (!editForm) throw new Error("No identity selected");
+      const current = identities?.find((i) => i.id === editForm.id);
+      const baseConfig = (current?.config ?? {}) as Record<string, unknown>;
+      const nextConfig: Record<string, unknown> = { ...baseConfig };
+      const trimmedModel = editForm.model.trim();
+      if (trimmedModel) {
+        nextConfig.model = trimmedModel;
+      } else {
+        delete nextConfig.model;
+      }
+      return updateCyberIdentity(token!, orgId!, workspaceId, editForm.id, {
+        type: editForm.type,
+        display_name: editForm.display_name.trim(),
+        config: nextConfig,
+      });
+    },
+    onSuccess: async () => {
+      setEditError(null);
+      closeEdit();
+      setEditForm(null);
+      await invalidate();
+    },
+    onError: (err: Error) => setEditError(err.message),
   });
 
   const enableWebChatMutation = useMutation({
@@ -280,6 +330,7 @@ export default function WorkspaceCyberIdentitiesPage() {
                 <Table.Tr>
                   <Table.Th>Display name</Table.Th>
                   <Table.Th>Type</Table.Th>
+                  <Table.Th>Model</Table.Th>
                   <Table.Th>Active</Table.Th>
                   <Table.Th>Created</Table.Th>
                   <Table.Th />
@@ -291,6 +342,17 @@ export default function WorkspaceCyberIdentitiesPage() {
                     <Table.Td>{row.display_name}</Table.Td>
                     <Table.Td>
                       <Badge variant="light">{typeLabel(row.type)}</Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      {typeof row.config?.model === "string" && row.config.model ? (
+                        <Text size="xs" ff="monospace">
+                          {row.config.model as string}
+                        </Text>
+                      ) : (
+                        <Text size="xs" c="dimmed">
+                          default
+                        </Text>
+                      )}
                     </Table.Td>
                     <Table.Td>
                       <Switch
@@ -343,6 +405,14 @@ export default function WorkspaceCyberIdentitiesPage() {
                             Enable in chat
                           </Button>
                         )}
+                        <Button
+                          size="xs"
+                          variant="default"
+                          onClick={() => startEdit(row)}
+                          title="Edit identity"
+                        >
+                          Edit
+                        </Button>
                         <ActionIcon
                           variant="subtle"
                           color="red"
@@ -406,6 +476,76 @@ export default function WorkspaceCyberIdentitiesPage() {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={editOpened}
+        onClose={() => {
+          closeEdit();
+          setEditForm(null);
+          setEditError(null);
+        }}
+        title="Edit cyber identity"
+        centered
+      >
+        {editForm ? (
+          <Stack gap="sm">
+            {editError ? (
+              <Alert color="red" title="Could not save">
+                {editError}
+              </Alert>
+            ) : null}
+            <TextInput
+              label="Display name"
+              value={editForm.display_name}
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setEditForm((f) => (f ? { ...f, display_name: value } : f));
+              }}
+              data-autofocus
+            />
+            <Select
+              label="Type"
+              data={CYBER_IDENTITY_TYPE_OPTIONS}
+              value={editForm.type}
+              onChange={(v) => {
+                if (v != null)
+                  setEditForm((f) => (f ? { ...f, type: v as CyberIdentityType } : f));
+              }}
+              allowDeselect={false}
+            />
+            <Select
+              label="Model"
+              description="Leave empty to fall back to the system default."
+              data={CYBER_IDENTITY_MODEL_OPTIONS}
+              value={editForm.model || null}
+              onChange={(v) =>
+                setEditForm((f) => (f ? { ...f, model: v ?? "" } : f))
+              }
+              clearable
+              searchable
+            />
+            <Group justify="flex-end" gap="xs">
+              <Button
+                variant="default"
+                onClick={() => {
+                  closeEdit();
+                  setEditForm(null);
+                  setEditError(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                loading={editMutation.isPending}
+                onClick={() => editMutation.mutate()}
+                disabled={!editForm.display_name.trim()}
+              >
+                Save
+              </Button>
+            </Group>
+          </Stack>
+        ) : null}
       </Modal>
     </Container>
   );

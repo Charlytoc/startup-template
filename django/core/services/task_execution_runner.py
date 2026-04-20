@@ -77,10 +77,11 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
     user_content = inputs.task_instructions
     loop_messages = [ExchangeMessage(role="user", content=user_content)]
 
+    model = JobTaskProcessorAgent.model_for_job(job) or MODEL
     log = AgentSessionLog.objects.create(
         user=None,
         celery_task_id=celery_task_id,
-        model=MODEL,
+        model=model,
         provider=PROVIDER,
         instructions=system_prompt,
         tools=[t.tool.model_dump() for t in tools],
@@ -98,7 +99,7 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             config=AgentConfig(
                 name=job.role_name[:80] or "Task agent",
                 system_prompt=system_prompt,
-                model=MODEL,
+                model=model,
             )
         )
         summary = agent.start_agent_loop(messages=loop_messages, tools=tools)
