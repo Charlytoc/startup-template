@@ -8,24 +8,29 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConversationConfig(BaseModel):
-    """Per-conversation runtime config. Holds the external thread/user ids plus future extensions.
+    """Per-conversation runtime config.
 
-    ``external_thread_id`` and ``external_user_id`` are **required** because every conversation
-    lives against one ``IntegrationAccount`` and we need both ids to route incoming/outgoing
-    messages unambiguously (e.g. Telegram: ``chat_id`` + ``from.id``).
+    For integration-backed conversations (``Conversation.origin == "integration"``)
+    both ``external_thread_id`` and ``external_user_id`` should be set so incoming/outgoing
+    messages can be routed unambiguously (e.g. Telegram: ``chat_id`` + ``from.id``).
+
+    For web-chat conversations (``origin == "web"``) there is no external provider; instead
+    ``web_user_id`` identifies the app user that owns the conversation.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    external_thread_id: str = Field(
-        ...,
-        min_length=1,
+    external_thread_id: str | None = Field(
+        default=None,
         description="External thread identifier on the provider (e.g. Telegram chat_id).",
     )
-    external_user_id: str = Field(
-        ...,
-        min_length=1,
+    external_user_id: str | None = Field(
+        default=None,
         description="External user identifier of the counterpart (e.g. Telegram from.id).",
+    )
+    web_user_id: int | None = Field(
+        default=None,
+        description="Our app user id when origin='web'.",
     )
     extra: dict[str, Any] = Field(
         default_factory=dict,

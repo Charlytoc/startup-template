@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ActionIcon,
@@ -28,19 +29,37 @@ import type { components } from "@/lib/api/schema";
 import {
   ORGANIZATION_HEADER,
   SELECTED_ORG_ID_KEY,
+  SELECTED_WORKSPACE_ID_KEY,
   TOKEN_KEY,
   USER_KEY,
   parseOrganization,
   type AuthUser,
 } from "@/lib/auth-storage";
+import { fetchWorkspaces } from "@/lib/my-workspaces";
+import {
+  fetchCyberIdentities,
+  type CyberIdentity,
+} from "@/lib/workspace-cyber-identities";
 
 type ApiSchemas = components["schemas"];
 type AuthResponse = ApiSchemas["AuthResponse"];
 type SignupRequest = ApiSchemas["SignupRequest"];
 type LoginRequest = ApiSchemas["LoginRequest"];
 type ApiError = ApiSchemas["ErrorResponseSchema"];
-type AgenticChatMessageRequest = ApiSchemas["AgenticChatMessageRequest"];
-type AgenticChatMessageResponse = ApiSchemas["AgenticChatMessageResponse"];
+
+type AgenticChatMessageRequest = {
+  message: string;
+  cyber_identity_id: string;
+};
+
+type AgenticChatMessageResponse = {
+  status: string;
+  conversation_id: string;
+  message_id: string;
+  job_assignment_id: string;
+};
+
+type AgenticChatErrorResponse = { error: string; error_code: string };
 
 type RealtimeMessage = {
   message: {
@@ -84,6 +103,11 @@ export default function ChatPage() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
+  const [selectedWorkspaceId] = useLocalStorage<number | null>({
+    key: SELECTED_WORKSPACE_ID_KEY,
+    defaultValue: null,
+    getInitialValueInEffect: true,
+  });
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [waiting, setWaiting] = useState(false);
@@ -120,7 +144,12 @@ export default function ChatPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (payload: { token: string; message: string; organizationId: string }) => {
+    mutationFn: async (payload: {
+      token: string;
+      message: string;
+      organizationId: string;
+      cyberIdentityId: string;
+    }) => {
       const response = await fetch(`${API_BASE_URL}/agentic-chat/messages`, {
         method: "POST",
         headers: {
@@ -128,11 +157,25 @@ export default function ChatPage() {
           Authorization: `Bearer ${payload.token}`,
           [ORGANIZATION_HEADER]: String(payload.organizationId),
         },
-        body: JSON.stringify({ message: payload.message } satisfies AgenticChatMessageRequest),
+        body: JSON.stringify({
+          message: payload.message,
+          cyber_identity_id: payload.cyberIdentityId,
+        } satisfies AgenticChatMessageRequest),
       });
-      const data = (await response.json()) as AgenticChatMessageResponse | ApiError;
+      const data = (await response.json()) as
+        | AgenticChatMessageResponse
+        | AgenticChatErrorResponse
+        | ApiError;
       if (!response.ok) {
-        throw new Error((data as ApiError).error ?? response.statusText);
+        const err = data as AgenticChatErrorResponse | ApiError;
+        const msg = err.error ?? response.statusText;
+        const code = (err as AgenticChatErrorResponse).error_code;
+        if (code === "WEB_CHAT_NOT_ENABLED") {
+          throw new Error(
+            "This identity does not have web chat enabled yet. Go to Cyber identities and click 'Enable in chat'.",
+          );
+        }
+        throw new Error(msg);
       }
       return data as AgenticChatMessageResponse;
     },
@@ -153,17 +196,55 @@ export default function ChatPage() {
     return picked ?? fromUser ?? null;
   }, [user, selectedOrgId]);
 
+  const needsIdentityPicker = Boolean(user && token && activeOrganizationId && !identityId);
+
+  const { data: workspacesData } = useQuery({
+    queryKey: ["workspaces", token, activeOrganizationId],
+    queryFn: () => fetchWorkspaces(token!, activeOrganizationId!),
+    enabled: needsIdentityPicker,
+    staleTime: 30_000,
+  });
+
+  const { data: chatEnabledIdentities, isPending: identitiesPending } = useQuery<
+    (CyberIdentity & { workspace_name: string })[]
+  >({
+    queryKey: [
+      "chat-enabled-identities",
+      token,
+      activeOrganizationId,
+      (workspacesData ?? []).map((w) => w.id).join(","),
+    ],
+    queryFn: async () => {
+      const workspaces = workspacesData ?? [];
+      const lists = await Promise.all(
+        workspaces.map((ws) =>
+          fetchCyberIdentities(token!, activeOrganizationId!, ws.id)
+            .then((rows) =>
+              rows
+                .filter((r) => r.is_active && r.web_chat_enabled)
+                .map((r) => ({ ...r, workspace_name: ws.name })),
+            )
+            .catch(() => []),
+        ),
+      );
+      return lists.flat();
+    },
+    enabled: needsIdentityPicker && Array.isArray(workspacesData),
+    staleTime: 15_000,
+  });
+
   const canSend = useMemo(
     () =>
       Boolean(
         user &&
           token &&
           activeOrganizationId != null &&
+          identityId &&
           input.trim().length > 0 &&
           !waiting &&
           !sendMessageMutation.isPending
       ),
-    [input, token, user, activeOrganizationId, waiting, sendMessageMutation.isPending]
+    [input, token, user, activeOrganizationId, identityId, waiting, sendMessageMutation.isPending]
   );
 
   useEffect(() => {
@@ -219,6 +300,7 @@ export default function ChatPage() {
       !user ||
       !token ||
       activeOrganizationId == null ||
+      !identityId ||
       !input.trim() ||
       waiting ||
       sendMessageMutation.isPending
@@ -231,6 +313,7 @@ export default function ChatPage() {
       token,
       message: content,
       organizationId: activeOrganizationId,
+      cyberIdentityId: identityId,
     });
   }
 
@@ -314,6 +397,60 @@ export default function ChatPage() {
     );
   }
 
+  if (!identityId) {
+    const manageHref =
+      selectedWorkspaceId != null
+        ? `/workspaces/${selectedWorkspaceId}/cyber-identities`
+        : "/workspace";
+    const rows = chatEnabledIdentities ?? [];
+    return (
+      <Center style={{ flex: 1 }} p="xl">
+        <Paper withBorder radius="md" p="xl" maw={560} w="100%">
+          <Stack gap="md">
+            <div>
+              <Title order={3}>Pick a cyber identity</Title>
+              <Text c="dimmed" size="sm" mt={4}>
+                The chat now runs against a specific identity. Pick one of the
+                chat-enabled identities below, or manage them from the cyber
+                identities page.
+              </Text>
+            </div>
+
+            {identitiesPending ? (
+              <Center py="md">
+                <Loader size="sm" />
+              </Center>
+            ) : rows.length === 0 ? (
+              <Text c="dimmed" size="sm">
+                You don&apos;t have any chat-enabled identities yet. Open the cyber
+                identities page and click <strong>Enable in chat</strong> on one
+                of them.
+              </Text>
+            ) : (
+              <Stack gap="xs">
+                {rows.map((row) => (
+                  <Button
+                    key={row.id}
+                    variant="light"
+                    justify="space-between"
+                    rightSection={<Badge variant="outline">{row.workspace_name}</Badge>}
+                    onClick={() => router.push(`/chat?identity=${row.id}`)}
+                  >
+                    {row.display_name}
+                  </Button>
+                ))}
+              </Stack>
+            )}
+
+            <Button component={Link} href={manageHref} variant="default">
+              Manage cyber identities
+            </Button>
+          </Stack>
+        </Paper>
+      </Center>
+    );
+  }
+
   return (
     <Box
       flex={1}
@@ -343,22 +480,20 @@ export default function ChatPage() {
               </Text>
             </Box>
           </Group>
-          {identityId ? (
-            <Group gap="xs">
-              <Badge variant="light" color="violet" title={identityId}>
-                Identity: {identityId.slice(0, 8)}…
-              </Badge>
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                onClick={() => router.replace("/chat")}
-                aria-label="Clear identity"
-                title="Clear identity context"
-              >
-                ✕
-              </ActionIcon>
-            </Group>
-          ) : null}
+          <Group gap="xs">
+            <Badge variant="light" color="violet" title={identityId}>
+              Identity: {identityId.slice(0, 8)}…
+            </Badge>
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              onClick={() => router.replace("/chat")}
+              aria-label="Clear identity"
+              title="Clear identity context"
+            >
+              ✕
+            </ActionIcon>
+          </Group>
         </Group>
       </Box>
 

@@ -7,15 +7,17 @@ import uuid
 from core.agent.base import AgentToolConfig
 from core.agent.tools.create_recurring_job import make_create_recurring_job_tool
 from core.agent.tools.schedule_one_off_task import make_schedule_one_off_task_tool
+from core.agent.tools.send_chat_message import make_send_chat_message_tool
 from core.agent.tools.send_telegram_message import make_send_telegram_message_tool
 from core.integrations.actionables import (
+    SYSTEM_SEND_CHAT_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
     TELEGRAM_SEND_MESSAGE,
 )
 from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
 from core.models import Conversation, CyberIdentity, IntegrationAccount, JobAssignment
-from core.schemas.channel import Channel, TelegramPrivateChannel
+from core.schemas.channel import Channel, TelegramPrivateChannel, WebChatChannel
 from core.schemas.job_assignment import JobAssignmentEventTrigger
 from core.services.telegram_bot import get_bot_token
 
@@ -38,7 +40,10 @@ class JobTaskProcessorAgent:
         channel = _channel_for_conversation(conversation)
         telegram_account: IntegrationAccount | None = None
         telegram_bot_token: str | None = None
-        if conversation.integration_account.provider == IntegrationAccount.Provider.TELEGRAM:
+        if (
+            conversation.integration_account_id
+            and conversation.integration_account.provider == IntegrationAccount.Provider.TELEGRAM
+        ):
             telegram_account = conversation.integration_account
             telegram_bot_token = get_bot_token(telegram_account) or None
 
@@ -81,6 +86,16 @@ class JobTaskProcessorAgent:
                     _add(make_send_telegram_message_tool(
                         bot_token=telegram_bot_token,
                         conversation=conversation,
+                    ))
+            elif slug == SYSTEM_SEND_CHAT_MESSAGE.slug:
+                if (
+                    conversation is not None
+                    and conversation.origin == Conversation.Origin.WEB
+                    and isinstance(channel, WebChatChannel)
+                ):
+                    _add(make_send_chat_message_tool(
+                        conversation=conversation,
+                        user_id=channel.user_id,
                     ))
             elif slug == TASKS_SCHEDULE_ONE_OFF.slug:
                 _add(make_schedule_one_off_task_tool(job=job, channel=channel))
@@ -136,18 +151,32 @@ class JobTaskProcessorAgent:
             parts.append(f"Instructions:\n{job.instructions.strip()}")
         parts.append(f"Cyber identities in scope:\n{identity_block}")
         parts.append(
-            "When you need to reply to the user, call **send_telegram_message** with the full text. "
-            "Do not invent a different channel; the tool is already scoped to this private chat."
+            "When you need to reply to the user, call the channel-specific send-message tool "
+            "(e.g. **send_telegram_message** for Telegram, **send_chat_message** for the web chat) "
+            "with the full text. Do not invent a different channel; the tool is already scoped to the "
+            "current conversation."
         )
         return "\n\n".join(parts)
 
 
 def _channel_for_conversation(conversation: Conversation) -> Channel | None:
-    """Derive a :class:`Channel` from a ``Conversation`` (currently Telegram-only)."""
+    """Derive a :class:`Channel` from a ``Conversation``."""
+    if conversation.origin == Conversation.Origin.WEB:
+        cfg = conversation.get_config()
+        if cfg.web_user_id is None:
+            return None
+        return WebChatChannel(
+            type="web_chat",
+            user_id=cfg.web_user_id,
+            cyber_identity_id=conversation.cyber_identity_id,
+        )
+
     account = conversation.integration_account
-    if account.provider != IntegrationAccount.Provider.TELEGRAM:
+    if account is None or account.provider != IntegrationAccount.Provider.TELEGRAM:
         return None
     cfg = conversation.get_config()
+    if not cfg.external_thread_id:
+        return None
     return TelegramPrivateChannel(
         type="telegram_private_chat",
         integration_account_id=account.id,

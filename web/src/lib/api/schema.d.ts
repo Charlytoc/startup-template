@@ -257,6 +257,23 @@ export interface paths {
         patch: operations["core_routers_workspaces_update_cyber_identity"];
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/cyber-identities/{cyber_identity_id}/enable-web-chat/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable Web Chat For Identity */
+        post: operations["core_routers_workspaces_enable_web_chat_for_identity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/actionables/": {
         parameters: {
             query?: never;
@@ -457,11 +474,29 @@ export interface components {
         AgenticChatMessageResponse: {
             /** Status */
             status: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Message Id */
+            message_id: string;
+            /** Job Assignment Id */
+            job_assignment_id: string;
+        };
+        /** AgenticChatErrorResponse */
+        AgenticChatErrorResponse: {
+            /** Error */
+            error: string;
+            /** Error Code */
+            error_code: string;
         };
         /** AgenticChatMessageRequest */
         AgenticChatMessageRequest: {
             /** Message */
             message: string;
+            /**
+             * Cyber Identity Id
+             * Format: uuid
+             */
+            cyber_identity_id: string;
         };
         /** IntegrationAccountListItem */
         IntegrationAccountListItem: {
@@ -615,6 +650,10 @@ export interface components {
              * Format: date-time
              */
             created: string;
+            /** Web Chat Enabled */
+            web_chat_enabled: boolean;
+            /** Web Chat Job Assignment Id */
+            web_chat_job_assignment_id: string | null;
         };
         /** CyberIdentityCreateRequest */
         CyberIdentityCreateRequest: {
@@ -647,6 +686,16 @@ export interface components {
             config?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** EnableWebChatResponse */
+        EnableWebChatResponse: {
+            /**
+             * Job Assignment Id
+             * Format: uuid
+             */
+            job_assignment_id: string;
+            /** Already Existed */
+            already_existed: boolean;
         };
         /** ActionableCatalogItem */
         ActionableCatalogItem: {
@@ -992,6 +1041,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgenticChatMessageResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatErrorResponse"];
                 };
             };
         };
@@ -1452,6 +1519,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CyberIdentityResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspaces_enable_web_chat_for_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+                cyber_identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnableWebChatResponse"];
                 };
             };
             /** @description Bad Request */

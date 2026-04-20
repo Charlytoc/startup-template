@@ -29,6 +29,10 @@ class Conversation(TimeStampedModel):
         ARCHIVED = "archived", "Archived"
         DELETED = "deleted", "Deleted"
 
+    class Origin(models.TextChoices):
+        INTEGRATION = "integration", "Integration"
+        WEB = "web", "Web chat"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     workspace = models.ForeignKey(
@@ -36,11 +40,20 @@ class Conversation(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="conversations",
     )
+    origin = models.CharField(
+        max_length=20,
+        choices=Origin.choices,
+        default=Origin.INTEGRATION,
+        help_text="Where this conversation happens (an external integration vs. the in-app web chat).",
+    )
     integration_account = models.ForeignKey(
         IntegrationAccount,
         on_delete=models.CASCADE,
         related_name="conversations",
-        help_text="Channel this conversation lives on (Telegram bot, Instagram account, ...).",
+        null=True,
+        blank=True,
+        help_text="Channel this conversation lives on (Telegram bot, Instagram account, ...). "
+        "Null for web-chat conversations.",
     )
     cyber_identity = models.ForeignKey(
         CyberIdentity,
@@ -89,9 +102,28 @@ class Conversation(TimeStampedModel):
         if self.cyber_identity_id and self.workspace_id and self.cyber_identity.workspace_id != self.workspace_id:
             raise ValidationError("cyber_identity must belong to the same workspace as the conversation.")
         try:
-            ConversationConfig.model_validate(self.config or {})
+            cfg = ConversationConfig.model_validate(self.config or {})
         except Exception as exc:
             raise ValidationError({"config": str(exc)}) from exc
+
+        if self.origin == self.Origin.INTEGRATION:
+            if not self.integration_account_id:
+                raise ValidationError(
+                    {"integration_account": "Required when origin='integration'."}
+                )
+            if not cfg.external_thread_id or not cfg.external_user_id:
+                raise ValidationError(
+                    {"config": "external_thread_id and external_user_id are required when origin='integration'."}
+                )
+        elif self.origin == self.Origin.WEB:
+            if self.integration_account_id:
+                raise ValidationError(
+                    {"integration_account": "Must be null when origin='web'."}
+                )
+            if cfg.web_user_id is None:
+                raise ValidationError(
+                    {"config": "web_user_id is required when origin='web'."}
+                )
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         self.full_clean()

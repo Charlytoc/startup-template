@@ -37,6 +37,7 @@ import {
   CYBER_IDENTITY_TYPE_OPTIONS,
   createCyberIdentity,
   deleteCyberIdentity,
+  enableWebChatForIdentity,
   fetchCyberIdentities,
   updateCyberIdentity,
   type CyberIdentity,
@@ -153,6 +154,18 @@ export default function WorkspaceCyberIdentitiesPage() {
     mutationFn: (row: CyberIdentity) =>
       deleteCyberIdentity(token!, orgId!, workspaceId, row.id),
     onSuccess: () => invalidate(),
+  });
+
+  const enableWebChatMutation = useMutation({
+    mutationFn: (row: CyberIdentity) =>
+      enableWebChatForIdentity(token!, orgId!, workspaceId, row.id),
+    onSuccess: async (_data, row) => {
+      await invalidate();
+      router.push(`/chat?identity=${row.id}`);
+    },
+    onError: (err: Error) => {
+      alert(`Could not enable web chat: ${err.message}`);
+    },
   });
 
   const displayUser = user ?? readStoredAuth().user;
@@ -296,16 +309,40 @@ export default function WorkspaceCyberIdentitiesPage() {
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4} justify="flex-end">
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          component={Link}
-                          href={`/chat?identity=${row.id}`}
-                          disabled={!row.is_active}
-                          title={row.is_active ? "Chat as this identity" : "Activate first"}
-                        >
-                          Chat
-                        </Button>
+                        {row.web_chat_enabled ? (
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            component={Link}
+                            href={`/chat?identity=${row.id}`}
+                            disabled={!row.is_active}
+                            title={row.is_active ? "Chat as this identity" : "Activate first"}
+                          >
+                            Chat
+                          </Button>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            disabled={
+                              !row.is_active ||
+                              (enableWebChatMutation.isPending &&
+                                enableWebChatMutation.variables?.id === row.id)
+                            }
+                            loading={
+                              enableWebChatMutation.isPending &&
+                              enableWebChatMutation.variables?.id === row.id
+                            }
+                            onClick={() => enableWebChatMutation.mutate(row)}
+                            title={
+                              row.is_active
+                                ? "Provision a web-chat job for this identity and open chat"
+                                : "Activate first"
+                            }
+                          >
+                            Enable in chat
+                          </Button>
+                        )}
                         <ActionIcon
                           variant="subtle"
                           color="red"

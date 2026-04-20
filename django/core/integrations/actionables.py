@@ -47,12 +47,24 @@ TASKS_CREATE_RECURRING_JOB = Actionable(
 )
 
 
+SYSTEM_SEND_CHAT_MESSAGE = Actionable(
+    slug="system.send_chat_message",
+    provider="system",
+    name="Send web chat message",
+    description=(
+        "Deliver a message to the user via the in-app web chat UI. "
+        "The destination (user + conversation) is already bound; the agent only supplies the body."
+    ),
+)
+
+
 ACTIONABLES: dict[str, Actionable] = {
     a.slug: a
     for a in (
         TELEGRAM_SEND_MESSAGE,
         TASKS_SCHEDULE_ONE_OFF,
         TASKS_CREATE_RECURRING_JOB,
+        SYSTEM_SEND_CHAT_MESSAGE,
     )
 }
 

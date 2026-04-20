@@ -18,7 +18,7 @@ from uuid import UUID
 from django.db import transaction
 from django.utils import timezone
 
-from core.models import Conversation, CyberIdentity, IntegrationAccount, Message
+from core.models import Conversation, CyberIdentity, IntegrationAccount, Message, Workspace
 from core.schemas.agentic_chat import ExchangeMessage
 from core.schemas.conversation import ConversationConfig
 
@@ -42,6 +42,26 @@ def find_active_conversation(
     )
 
 
+def find_active_web_conversation(
+    *,
+    workspace: Workspace,
+    cyber_identity: CyberIdentity,
+    web_user_id: int,
+) -> Conversation | None:
+    """Return the most recent ``ACTIVE`` web-chat conversation for this (workspace, identity, user)."""
+    return (
+        Conversation.objects.filter(
+            workspace=workspace,
+            origin=Conversation.Origin.WEB,
+            cyber_identity=cyber_identity,
+            status=Conversation.Status.ACTIVE,
+            config__web_user_id=web_user_id,
+        )
+        .order_by("-last_interaction_at", "-created")
+        .first()
+    )
+
+
 def get_or_create_active_conversation(
     *,
     account: IntegrationAccount,
@@ -49,7 +69,7 @@ def get_or_create_active_conversation(
     external_thread_id: str,
     external_user_id: str,
 ) -> Conversation:
-    """Return the active conversation for the thread, creating one when none exists."""
+    """Return the active integration-backed conversation for the thread, creating one when none exists."""
     existing = find_active_conversation(account=account, external_thread_id=external_thread_id)
     if existing is not None:
         return existing
@@ -61,6 +81,7 @@ def get_or_create_active_conversation(
     with transaction.atomic():
         convo = Conversation(
             workspace=account.workspace,
+            origin=Conversation.Origin.INTEGRATION,
             integration_account=account,
             cyber_identity=cyber_identity,
             status=Conversation.Status.ACTIVE,
@@ -70,6 +91,39 @@ def get_or_create_active_conversation(
     logger.info(
         "conversations: created conversation=%s account=%s thread=%s",
         convo.id, account.id, external_thread_id,
+    )
+    return convo
+
+
+def get_or_create_active_web_conversation(
+    *,
+    workspace: Workspace,
+    cyber_identity: CyberIdentity,
+    web_user_id: int,
+) -> Conversation:
+    """Return the active web-chat conversation for ``(workspace, identity, user)``, creating one if needed."""
+    existing = find_active_web_conversation(
+        workspace=workspace,
+        cyber_identity=cyber_identity,
+        web_user_id=web_user_id,
+    )
+    if existing is not None:
+        return existing
+
+    cfg = ConversationConfig(web_user_id=web_user_id)
+    with transaction.atomic():
+        convo = Conversation(
+            workspace=workspace,
+            origin=Conversation.Origin.WEB,
+            integration_account=None,
+            cyber_identity=cyber_identity,
+            status=Conversation.Status.ACTIVE,
+        )
+        convo.set_config(cfg)
+        convo.save()
+    logger.info(
+        "conversations: created web conversation=%s workspace=%s identity=%s user=%s",
+        convo.id, workspace.id, cyber_identity.id, web_user_id,
     )
     return convo
 

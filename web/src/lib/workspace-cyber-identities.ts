@@ -22,6 +22,13 @@ export type CyberIdentity = {
   is_active: boolean;
   config: Record<string, unknown>;
   created: string;
+  web_chat_enabled: boolean;
+  web_chat_job_assignment_id: string | null;
+};
+
+export type EnableWebChatResult = {
+  job_assignment_id: string;
+  already_existed: boolean;
 };
 
 export type CyberIdentityCreateInput = {
@@ -101,6 +108,23 @@ export async function updateCyberIdentity(
   );
   if (!response.ok) await parseError(response, "Failed to update cyber identity");
   return response.json() as Promise<CyberIdentity>;
+}
+
+export async function enableWebChatForIdentity(
+  token: string,
+  organizationId: string,
+  workspaceId: number,
+  cyberIdentityId: string,
+): Promise<EnableWebChatResult> {
+  const response = await fetch(
+    `${API_BASE_URL}/workspaces/${workspaceId}/cyber-identities/${cyberIdentityId}/enable-web-chat/`,
+    {
+      method: "POST",
+      headers: authHeaders(token, organizationId, true),
+    },
+  );
+  if (!response.ok) await parseError(response, "Failed to enable web chat");
+  return response.json() as Promise<EnableWebChatResult>;
 }
 
 export async function deleteCyberIdentity(

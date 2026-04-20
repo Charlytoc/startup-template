@@ -18,4 +18,17 @@ class TelegramPrivateChannel(BaseModel):
     chat_id: str
 
 
-Channel = Annotated[TelegramPrivateChannel, Field(discriminator="type")]
+class WebChatChannel(BaseModel):
+    """A pre-bound in-app web chat session (user + cyber identity)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: Literal["web_chat"]
+    user_id: int
+    cyber_identity_id: UUID
+
+
+Channel = Annotated[
+    TelegramPrivateChannel | WebChatChannel,
+    Field(discriminator="type"),
+]

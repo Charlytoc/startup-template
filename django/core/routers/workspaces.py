@@ -26,6 +26,10 @@ from core.models import (
 )
 from core.schemas.job_assignment import JobAssignmentConfig
 from core.services.auth import ApiKeyAuth, auth_service
+from core.services.job_assignment_defaults import (
+    ensure_web_chat_job_for_identity,
+    find_web_chat_job_for_identity,
+)
 from core.utils.schemas import ErrorResponseSchema
 
 router = Router(tags=["Workspaces"])
@@ -368,6 +372,8 @@ class CyberIdentityResponse(Schema):
     is_active: bool
     config: dict
     created: datetime
+    web_chat_enabled: bool
+    web_chat_job_assignment_id: uuid.UUID | None
 
 
 class CyberIdentityCreateRequest(Schema):
@@ -385,6 +391,7 @@ class CyberIdentityUpdateRequest(Schema):
 
 
 def _cyber_identity_response(row: CyberIdentity) -> CyberIdentityResponse:
+    web_job = find_web_chat_job_for_identity(row)
     return CyberIdentityResponse(
         id=row.id,
         workspace_id=row.workspace_id,
@@ -393,6 +400,8 @@ def _cyber_identity_response(row: CyberIdentity) -> CyberIdentityResponse:
         is_active=row.is_active,
         config=row.config or {},
         created=row.created,
+        web_chat_enabled=web_job is not None,
+        web_chat_job_assignment_id=web_job.id if web_job is not None else None,
     )
 
 
@@ -484,6 +493,41 @@ def update_cyber_identity(
         row.config = data.config
     row.save()
     return 200, _cyber_identity_response(row)
+
+
+class EnableWebChatResponse(Schema):
+    job_assignment_id: uuid.UUID
+    already_existed: bool
+
+
+@router.post(
+    "/{workspace_id}/cyber-identities/{cyber_identity_id}/enable-web-chat/",
+    response={
+        200: EnableWebChatResponse,
+        400: ErrorResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+    },
+    auth=[ApiKeyAuth(), django_auth],
+)
+def enable_web_chat_for_identity(
+    request, workspace_id: int, cyber_identity_id: uuid.UUID
+):
+    workspace = _workspace_for_member(request, workspace_id)
+    user = auth_service.get_user_from_request(request)
+    row = CyberIdentity.objects.filter(id=cyber_identity_id, workspace=workspace).first()
+    if row is None:
+        raise HttpError(404, "Cyber identity not found.")
+    if not row.is_active:
+        return 400, ErrorResponseSchema(
+            error="Activate the identity before enabling it for web chat.",
+            error_code="CYBER_IDENTITY_INACTIVE",
+        )
+    job, created = ensure_web_chat_job_for_identity(identity=row, user=user)
+    return 200, EnableWebChatResponse(
+        job_assignment_id=job.id, already_existed=not created
+    )
 
 
 @router.delete(
