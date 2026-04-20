@@ -1,4 +1,9 @@
-"""Catalogue of integration event types. The ``slug`` is what gets stored in ``IntegrationEvent.event_type``."""
+"""Catalogue of integration event types.
+
+``IntegrationEvent`` rows are **snapshots of things the external provider produced** (e.g.
+a Telegram webhook payload). Actions we perform (sending a reply, clearing context, ...)
+are NOT events; they live in :class:`core.models.Conversation` / :class:`core.models.Message`.
+"""
 
 from __future__ import annotations
 
@@ -18,26 +23,10 @@ TELEGRAM_PRIVATE_MESSAGE = IntegrationEventType(
     description="A private message was received by a connected Telegram bot from an approved sender.",
 )
 
-TELEGRAM_PRIVATE_MESSAGE_SENT = IntegrationEventType(
-    slug="telegram.private_message_sent",
-    provider="telegram",
-    description="The bot sent a private message (e.g. job agent reply via sendMessage).",
-)
-
-TELEGRAM_PRIVATE_MESSAGE_CONTEXT_RESET = IntegrationEventType(
-    slug="telegram.private_message_context_reset",
-    provider="telegram",
-    description="The user requested clearing prior private-chat context.",
-)
-
 
 EVENT_TYPES: dict[str, IntegrationEventType] = {
     e.slug: e
-    for e in (
-        TELEGRAM_PRIVATE_MESSAGE,
-        TELEGRAM_PRIVATE_MESSAGE_SENT,
-        TELEGRAM_PRIVATE_MESSAGE_CONTEXT_RESET,
-    )
+    for e in (TELEGRAM_PRIVATE_MESSAGE,)
 }
 
 

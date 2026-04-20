@@ -10,13 +10,15 @@ from datetime import datetime, timezone
 from django.db import transaction
 
 from core.agent.base import Agent, AgentConfig
-from core.models import JobAssignment, TaskExecution
+from core.models import Conversation, CyberIdentity, IntegrationAccount, JobAssignment, TaskExecution
 from core.models.agent_session_log import AgentSessionLog
 from core.schemas.agentic_chat import ExchangeMessage
+from core.schemas.channel import Channel, TelegramPrivateChannel
 from core.schemas.task_execution import (
     TaskExecutionError,
     TaskExecutionOutputs,
 )
+from core.services.conversations import append_user_message, get_or_create_active_conversation
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
 
 logger = logging.getLogger(__name__)
@@ -53,9 +55,17 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         logger.exception("run_task_execution: invalid inputs on task=%s", task.id)
         return _fail(task, f"invalid_inputs: {exc}")
 
-    tools = JobTaskProcessorAgent.build_tools_for_task_execution(
-        job=job, channel=inputs.channel
+    conversation = _resolve_conversation_for_task(job, inputs.channel)
+    if conversation is None:
+        return _fail(task, "cannot_resolve_conversation_for_task")
+
+    append_user_message(
+        conversation,
+        content_text=inputs.task_instructions,
+        content_structured={"trigger": "task_execution", "task_execution_id": str(task.id)},
     )
+
+    tools = JobTaskProcessorAgent.build_tools_for_conversation(job=job, conversation=conversation)
     if not tools:
         return _fail(task, "no_tools_available_for_task")
 
@@ -146,6 +156,35 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         task.completed_at = datetime.now(timezone.utc)
         task.save(update_fields=["status", "outputs", "completed_at", "modified"])
         return {"status": "error", "error": str(exc)}
+
+
+def _resolve_conversation_for_task(
+    job: JobAssignment, channel: Channel | None
+) -> Conversation | None:
+    """Find or create the ``Conversation`` the task should speak on, based on its channel."""
+    if not isinstance(channel, TelegramPrivateChannel):
+        return None
+    account = IntegrationAccount.objects.filter(
+        id=channel.integration_account_id, workspace=job.workspace
+    ).first()
+    if account is None:
+        return None
+
+    cfg = job.get_config()
+    if not cfg.identities:
+        return None
+    identity = CyberIdentity.objects.filter(
+        id=cfg.identities[0].id, workspace=job.workspace
+    ).first()
+    if identity is None:
+        return None
+
+    return get_or_create_active_conversation(
+        account=account,
+        cyber_identity=identity,
+        external_thread_id=channel.chat_id,
+        external_user_id=channel.chat_id,
+    )
 
 
 def _fail(task: TaskExecution, reason: str) -> dict:

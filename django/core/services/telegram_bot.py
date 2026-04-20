@@ -14,7 +14,7 @@ from django.core.cache import cache
 from django.db import transaction
 from django.http import HttpRequest
 
-from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE, TELEGRAM_PRIVATE_MESSAGE_SENT
+from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
 from core.models import IntegrationAccount, IntegrationEvent, Workspace
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
@@ -83,25 +83,6 @@ def telegram_send_message(bot_token: str, chat_id: int | str, text: str) -> dict
     if not isinstance(result, dict):
         raise ValueError("Telegram sendMessage returned no message result")
     return result
-
-
-def record_private_message_sent_event(account: IntegrationAccount, message: dict[str, Any]) -> None:
-    """Persist an outbound private message as ``IntegrationEvent`` (idempotent per chat + message_id)."""
-    mid = message.get("message_id")
-    chat = message.get("chat") or {}
-    cid = chat.get("id")
-    if mid is None or cid is None:
-        return
-    try:
-        external_id = f"{int(cid)}:{int(mid)}"
-    except (TypeError, ValueError):
-        return
-    IntegrationEvent.objects.get_or_create(
-        integration_account=account,
-        event_type=TELEGRAM_PRIVATE_MESSAGE_SENT.slug,
-        external_event_id=external_id[:255],
-        defaults={"payload": {"message": message}},
-    )
 
 
 def find_integration_by_webhook_path_token(webhook_path_token: str) -> IntegrationAccount | None:

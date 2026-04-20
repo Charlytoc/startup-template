@@ -1,12 +1,13 @@
-"""Tool: send a Telegram text message to a pre-bound private chat (bot token + chat id)."""
+"""Tool: send a Telegram text message to the Conversation's bound chat and persist the reply."""
 
 from __future__ import annotations
 
 import logging
 
 from core.agent.base import AgentTool, AgentToolConfig
-from core.models import IntegrationAccount
-from core.services.telegram_bot import record_private_message_sent_event, telegram_send_message
+from core.models import Conversation
+from core.services.conversations import append_assistant_message
+from core.services.telegram_bot import telegram_send_message
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +15,18 @@ logger = logging.getLogger(__name__)
 def make_send_telegram_message_tool(
     *,
     bot_token: str,
-    chat_id: int | str,
-    integration_account: IntegrationAccount,
+    conversation: Conversation,
 ) -> AgentToolConfig:
-    """Return a tool named ``send_telegram_message`` scoped to this bot and chat."""
+    """Return a tool named ``send_telegram_message`` bound to this conversation's chat + bot.
+
+    The conversation carries everything needed to send and persist the reply:
+
+    - ``conversation.integration_account`` identifies the bot workspace-side.
+    - ``conversation.config.external_thread_id`` is the Telegram ``chat_id``.
+    - After a successful send, an **assistant** :class:`Message` is appended to the conversation.
+    """
+    cfg = conversation.get_config()
+    chat_id = cfg.external_thread_id
 
     tool = AgentTool(
         type="function",
@@ -44,16 +53,19 @@ def make_send_telegram_message_tool(
         if not text:
             return "Error: message must be non-empty."
         try:
-            msg_result = telegram_send_message(bot_token, chat_id, text)
+            sent = telegram_send_message(bot_token, chat_id, text)
         except ValueError as exc:
             return f"Error: {exc}"
         try:
-            record_private_message_sent_event(integration_account, msg_result)
+            append_assistant_message(
+                conversation,
+                content_text=text,
+                content_structured={"telegram_sent": sent},
+            )
         except Exception:
             logger.exception(
-                "record_private_message_sent_event failed account=%s chat_id=%s",
-                integration_account.id,
-                chat_id,
+                "append_assistant_message failed conversation=%s chat_id=%s",
+                conversation.id, chat_id,
             )
         return "Message sent successfully."
 

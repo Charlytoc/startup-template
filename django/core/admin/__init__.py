@@ -3,7 +3,9 @@ from django.contrib import admin
 from core.admin.agent_session_log import AgentSessionLogAdmin
 from core.admin.api_token import ApiTokenAdmin
 from core.admin.artifact import ArtifactAdmin
+from core.admin.conversation import ConversationAdmin
 from core.admin.cyber_identity import CyberIdentityAdmin
+from core.admin.message import MessageAdmin
 from core.admin.identity_asset import IdentityAssetAdmin
 from core.admin.integration_account import IntegrationAccountAdmin
 from core.admin.integration_bridge import IntegrationBridgeAdmin
@@ -22,6 +24,7 @@ from core.models import (
     AgentSessionLog,
     ApiToken,
     Artifact,
+    Conversation,
     CyberIdentity,
     IdentityAsset,
     IntegrationAccount,
@@ -30,6 +33,7 @@ from core.models import (
     JobAssignment,
     MediaObject,
     Memory,
+    Message,
     Organization,
     OrganizationMember,
     Role,
@@ -57,3 +61,5 @@ admin.site.register(TaskExecution, TaskExecutionAdmin)
 admin.site.register(Artifact, ArtifactAdmin)
 admin.site.register(ApiToken, ApiTokenAdmin)
 admin.site.register(AgentSessionLog, AgentSessionLogAdmin)
+admin.site.register(Conversation, ConversationAdmin)
+admin.site.register(Message, MessageAdmin)

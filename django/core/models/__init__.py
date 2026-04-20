@@ -16,6 +16,8 @@ from .integration_event import IntegrationEvent
 from .job_assignment import JobAssignment
 from .task_execution import TaskExecution
 from .artifact import Artifact
+from .conversation import Conversation
+from .message import Message
 
 __all__ = [
     "User",
@@ -36,4 +38,6 @@ __all__ = [
     "JobAssignment",
     "TaskExecution",
     "Artifact",
+    "Conversation",
+    "Message",
 ]

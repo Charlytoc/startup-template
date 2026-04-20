@@ -1,16 +1,18 @@
-"""Route approved inbound Telegram traffic: enqueue job agent or fall back to a fixed reply."""
+"""Route approved inbound Telegram traffic: resolve Conversation, persist user Message, enqueue agent."""
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from core.models import IntegrationAccount, JobAssignment
+from core.models import CyberIdentity, IntegrationAccount, JobAssignment
+from core.services.conversations import (
+    append_user_message,
+    archive_conversation,
+    find_active_conversation,
+    get_or_create_active_conversation,
+)
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
 from core.services.telegram_bot import get_bot_token, telegram_send_message
-from core.services.telegram_private_message_history import (
-    record_private_chat_context_reset_event,
-)
 from core.tasks.job_assignment_agent import run_job_assignment_agent
 
 NO_TASKS_REPLY = (
@@ -37,43 +39,72 @@ def _is_clear_context_command(message: dict[str, Any]) -> bool:
     return command in {"/clear", "/clearcontext", "/reset"} or command.startswith("/clear@")
 
 
+def _external_user_id(message: dict[str, Any]) -> str | None:
+    from_user = message.get("from") or {}
+    uid = from_user.get("id")
+    if uid is None:
+        return None
+    return str(uid)
+
+
+def _job_primary_identity(job: JobAssignment) -> CyberIdentity | None:
+    cfg = job.get_config()
+    if not cfg.identities:
+        return None
+    first = cfg.identities[0]
+    return CyberIdentity.objects.filter(id=first.id, workspace=job.workspace).first()
+
+
 def process_approved_message(account: IntegrationAccount, message: dict[str, Any]) -> None:
-    """Dispatch to the job agent when a runnable job exists; otherwise fixed copy or silence."""
+    """Resolve the conversation, persist the user message, enqueue the agent (or fall back)."""
     chat = message.get("chat") or {}
     chat_id = chat.get("id")
     if chat_id is None:
         return
+    external_thread_id = str(chat_id)
 
     if _is_clear_context_command(message):
-        from_user = message.get("from") or {}
-        raw_uid = from_user.get("id")
-        try:
-            telegram_user_id = int(raw_uid) if raw_uid is not None else None
-        except (TypeError, ValueError):
-            telegram_user_id = None
-        record_private_chat_context_reset_event(
-            account,
-            message,
-            requested_by_telegram_user_id=telegram_user_id,
+        convo = find_active_conversation(
+            account=account, external_thread_id=external_thread_id
         )
+        if convo is not None:
+            archive_conversation(convo)
         bot_token = get_bot_token(account)
         if bot_token:
             telegram_send_message(bot_token, chat_id, CLEAR_CONTEXT_REPLY)
         return
 
-    job = JobTaskProcessorAgent.first_runnable_job_for_telegram_private_message(account, message)
-    if job is not None:
-        run_job_assignment_agent.delay(
-            str(job.id),
-            str(account.id),
-            json.dumps(message, default=str),
-        )
+    job = JobTaskProcessorAgent.first_runnable_job_for_telegram_private_message(account)
+    if job is None:
+        if _workspace_has_configured_jobs(account):
+            return
+        bot_token = get_bot_token(account)
+        if not bot_token:
+            return
+        telegram_send_message(bot_token, chat_id, NO_TASKS_REPLY)
         return
 
-    if _workspace_has_configured_jobs(account):
+    identity = _job_primary_identity(job)
+    if identity is None:
         return
 
-    bot_token = get_bot_token(account)
-    if not bot_token:
-        return
-    telegram_send_message(bot_token, chat_id, NO_TASKS_REPLY)
+    external_user_id = _external_user_id(message) or external_thread_id
+    convo = get_or_create_active_conversation(
+        account=account,
+        cyber_identity=identity,
+        external_thread_id=external_thread_id,
+        external_user_id=external_user_id,
+    )
+
+    text = (message.get("text") or message.get("caption") or "").strip()
+    user_msg = append_user_message(
+        convo,
+        content_text=text,
+        content_structured={"telegram_message": message},
+    )
+
+    run_job_assignment_agent.delay(
+        str(job.id),
+        str(convo.id),
+        str(user_msg.id),
+    )
