@@ -19,8 +19,8 @@ from core.services.instagram_service import (
     disconnect_instagram_account,
     handle_webhook_verification,
     instagram_exchange_code,
+    instagram_get_account_info,
     instagram_get_long_lived_token,
-    instagram_get_user_info,
     process_webhook_request,
     store_oauth_state,
 )
@@ -131,14 +131,25 @@ def instagram_callback(request: HttpRequest, params: _CallbackParams = Query(...
         user = User.objects.get(pk=user_id)
         workspace = Workspace.objects.get(id=workspace_id)
 
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+
         short = instagram_exchange_code(params.code)
+        _log.info("instagram_callback: short token keys=%s", list(short.keys()))
+
         long_lived = instagram_get_long_lived_token(short["access_token"])
-        user_info = instagram_get_user_info(long_lived["access_token"])
+        _log.info("instagram_callback: long-lived token keys=%s", list(long_lived.keys()))
 
-        ig_user_id = str(user_info.get("id") or short.get("user_id") or "")
-        ig_username = str(user_info.get("username") or "")
+        fb_user_token = long_lived["access_token"]
+        _log.info("instagram_callback: fb_user_token (local debug)=%s", fb_user_token)
 
-        if not ig_user_id:
+        ig_user_id, ig_username, page_access_token = instagram_get_account_info(fb_user_token)
+        if page_access_token:
+            _log.info("instagram_callback: page_access_token (local debug)=%s", page_access_token)
+        _log.info("instagram_callback: ig_user_id=%r ig_username=%r page_token_present=%s",
+                  ig_user_id, ig_username, bool(page_access_token))
+
+        if not ig_user_id or not page_access_token:
             return HttpResponse(
                 status=302,
                 headers={"Location": f"{frontend}/workspaces/{workspace_id}/integrations?instagram_error=no_ig_accounts"},
@@ -147,7 +158,8 @@ def instagram_callback(request: HttpRequest, params: _CallbackParams = Query(...
         account = connect_instagram_account(
             workspace=workspace,
             user=user,
-            access_token=long_lived["access_token"],
+            page_access_token=page_access_token,
+            fb_user_token=fb_user_token,
             ig_user_id=ig_user_id,
             ig_username=ig_username,
         )

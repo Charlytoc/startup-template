@@ -230,6 +230,25 @@ TELEGRAM_APPROVAL_CACHE_TTL = int(os.getenv("TELEGRAM_APPROVAL_CACHE_TTL", "3600
 
 # Instagram / Meta App credentials.
 # Create a Meta App at https://developers.facebook.com/apps/
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        "core": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
 INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID", "")
 INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET", "")
 # Set this to any static string you choose, then enter it in Meta App Dashboard → Webhooks → Verify Token.
