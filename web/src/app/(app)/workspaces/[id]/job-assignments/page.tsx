@@ -35,6 +35,7 @@ import {
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 import { fetchCyberIdentities } from "@/lib/workspace-cyber-identities";
+import type { CyberIdentity } from "@/lib/workspace-cyber-identities";
 import {
   createJobAssignment,
   deleteJobAssignment,
@@ -159,13 +160,17 @@ export default function WorkspaceJobAssignmentsPage() {
         const [slug, integration_account_id] = key.split("::");
         return { actionable_slug: slug, integration_account_id };
       });
+      const identityPayload: Pick<CyberIdentity, "id" | "type" | "config">[] = selectedIdentityIds
+        .map((id) => identities?.find((i) => i.id === id))
+        .filter((row): row is CyberIdentity => Boolean(row))
+        .map((i) => ({ id: i.id, type: i.type, config: i.config ?? {} }));
       return createJobAssignment(token!, orgId!, workspaceId, {
         role_name: roleName.trim(),
         description: description.trim(),
         instructions: instructions.trim(),
         enabled: true,
         config: {
-          identities: selectedIdentityIds,
+          identities: identityPayload,
           actions,
         },
       });

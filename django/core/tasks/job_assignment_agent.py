@@ -14,6 +14,10 @@ from core.models import IntegrationAccount, JobAssignment
 from core.models.agent_session_log import AgentSessionLog
 from core.schemas.agentic_chat import ExchangeMessage
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
+from core.services.telegram_private_message_history import (
+    prior_private_chat_exchange_messages,
+    telegram_chat_id,
+)
 
 logger = get_task_logger(__name__)
 
@@ -61,6 +65,21 @@ def run_job_assignment_agent(
 
     system_prompt = JobTaskProcessorAgent.build_system_prompt(job)
     user_content = JobTaskProcessorAgent.user_turn_content(message)
+    chat_id = telegram_chat_id(message)
+    current_message_id = message.get("message_id")
+    try:
+        current_message_id_int = int(current_message_id) if current_message_id is not None else None
+    except (TypeError, ValueError):
+        current_message_id_int = None
+
+    prior: list[ExchangeMessage] = []
+    if chat_id is not None:
+        prior = prior_private_chat_exchange_messages(
+            account,
+            chat_id,
+            exclude_message_id=current_message_id_int,
+        )
+    loop_messages = [*prior, ExchangeMessage(role="user", content=user_content)]
 
     log = AgentSessionLog.objects.create(
         user=None,
@@ -69,9 +88,7 @@ def run_job_assignment_agent(
         provider=PROVIDER,
         instructions=system_prompt,
         tools=[t.tool.model_dump() for t in tools],
-        inputs=[
-            {"role": "user", "content": user_content},
-        ],
+        inputs=[m.model_dump() for m in loop_messages],
         status=AgentSessionLog.Status.PENDING,
     )
 
@@ -85,7 +102,7 @@ def run_job_assignment_agent(
             )
         )
         summary = agent.start_agent_loop(
-            messages=[ExchangeMessage(role="user", content=user_content)],
+            messages=loop_messages,
             tools=tools,
         )
         duration = time.monotonic() - started

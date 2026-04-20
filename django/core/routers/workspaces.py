@@ -7,12 +7,14 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.security import django_auth
 
-from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
+from pydantic import ValidationError
+
 from core.integrations.workspace_actionables import (
     list_actionable_catalog_for_workspace,
     validate_job_assignment_config,
 )
 from core.models import CyberIdentity, IntegrationAccount, JobAssignment, Role, Workspace, WorkspaceMember
+from core.schemas.job_assignment import JobAssignmentConfig
 from core.services.auth import ApiKeyAuth, auth_service
 from core.utils.schemas import ErrorResponseSchema
 
@@ -359,32 +361,12 @@ class JobAssignmentUpdateRequest(Schema):
     config: dict | None = None
 
 
-def _default_job_config() -> dict:
-    return {
-        "accounts": [],
-        "identities": [],
-        "triggers": [],
-        "actions": [],
-    }
-
-
-def _normalize_job_config(cfg: dict) -> dict:
-    """Merge defaults, infer ``accounts`` from ``actions``, and add a default event trigger if none set."""
-    out = {**_default_job_config(), **cfg}
-    accs = [str(x) for x in (out.get("accounts") or [])]
-    seen = set(accs)
-    for act in out.get("actions") or []:
-        if isinstance(act, dict) and act.get("integration_account_id"):
-            iid = str(act["integration_account_id"])
-            if iid not in seen:
-                accs.append(iid)
-                seen.add(iid)
-    out["accounts"] = accs
-    if not out.get("triggers"):
-        out["triggers"] = [
-            {"type": "event", "on": TELEGRAM_PRIVATE_MESSAGE.slug, "filter": {}},
-        ]
-    return out
+def _parse_job_config(cfg: dict) -> JobAssignmentConfig:
+    try:
+        return JobAssignmentConfig.model_validate(cfg or {})
+    except ValidationError as exc:
+        parts = [f"{list(e.get('loc', ()))}: {e.get('msg')}" for e in exc.errors()]
+        raise HttpError(400, "; ".join(parts) if parts else str(exc)) from exc
 
 
 @router.get(
@@ -420,8 +402,8 @@ def create_job_assignment(request, workspace_id: int, data: JobAssignmentCreateR
     if not role_name:
         return 400, ErrorResponseSchema(error="role_name is required.", error_code="ROLE_NAME_REQUIRED")
 
-    cfg = _normalize_job_config(data.config or {})
-    validate_job_assignment_config(workspace=workspace, config=cfg)
+    cfg_model = _parse_job_config(data.config or {})
+    validate_job_assignment_config(workspace=workspace, config=cfg_model)
 
     row = JobAssignment(
         workspace=workspace,
@@ -429,8 +411,8 @@ def create_job_assignment(request, workspace_id: int, data: JobAssignmentCreateR
         description=(data.description or "").strip(),
         instructions=(data.instructions or "").strip(),
         enabled=data.enabled,
-        config=cfg,
     )
+    row.set_config(cfg_model)
     row.save()
     return 201, _job_assignment_response(row)
 
@@ -469,9 +451,9 @@ def update_job_assignment(
     if data.enabled is not None:
         row.enabled = data.enabled
     if data.config is not None:
-        merged = _normalize_job_config({**(row.config or {}), **data.config})
-        validate_job_assignment_config(workspace=workspace, config=merged)
-        row.config = merged
+        cfg_model = _parse_job_config({**(row.config or {}), **data.config})
+        validate_job_assignment_config(workspace=workspace, config=cfg_model)
+        row.set_config(cfg_model)
     row.save()
     return 200, _job_assignment_response(row)
 

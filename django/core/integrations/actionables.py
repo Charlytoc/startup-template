@@ -26,9 +26,34 @@ TELEGRAM_SEND_MESSAGE = Actionable(
 )
 
 
+TASKS_SCHEDULE_ONE_OFF = Actionable(
+    slug="tasks.schedule_one_off",
+    provider="system",
+    name="Schedule a one-off task",
+    description=(
+        "Let the agent schedule a future one-off task (e.g. reminders). "
+        "Runs once at the specified offset and inherits the current job's channel and capabilities."
+    ),
+)
+
+TASKS_CREATE_RECURRING_JOB = Actionable(
+    slug="tasks.create_recurring_job",
+    provider="system",
+    name="Create a recurring job (cron)",
+    description=(
+        "Let the agent create a new JobAssignment that fires on a cron schedule "
+        "(e.g. 'every Mon/Wed/Fri at 12:00'), inheriting accounts, identities and actions from the parent job."
+    ),
+)
+
+
 ACTIONABLES: dict[str, Actionable] = {
     a.slug: a
-    for a in (TELEGRAM_SEND_MESSAGE,)
+    for a in (
+        TELEGRAM_SEND_MESSAGE,
+        TASKS_SCHEDULE_ONE_OFF,
+        TASKS_CREATE_RECURRING_JOB,
+    )
 }
 
 

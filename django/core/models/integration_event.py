@@ -14,7 +14,7 @@ from core.models.integration_account import IntegrationAccount
 
 class IntegrationEvent(TimeStampedModel):
     """
-    Single inbound event received from an ``IntegrationAccount``.
+    Activity tied to an ``IntegrationAccount`` (inbound webhooks, outbound API actions we log, …).
 
     Stored verbatim so event dispatching and replay (firing ``JobAssignment`` runs via
     ``TaskExecution``) can be built later without replaying from the provider.

@@ -158,6 +158,18 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 
+# Celery beat: deferred / scheduled task dispatchers.
+CELERY_BEAT_SCHEDULE = {
+    "dispatch-due-task-executions": {
+        "task": "core.tasks.task_dispatcher.dispatch_due_task_executions",
+        "schedule": 30.0,
+    },
+    "dispatch-due-cron-jobs": {
+        "task": "core.tasks.task_dispatcher.dispatch_due_cron_jobs",
+        "schedule": 60.0,
+    },
+}
+
 # Redis Configuration (standard TCP 6379 — compose image and typical ElastiCache)
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = 6379

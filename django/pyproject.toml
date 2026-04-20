@@ -29,6 +29,7 @@ dependencies = [
     "boto3==1.42.89",
     "Pillow==12.2.0",
     "cryptography==46.0.3",
+    "croniter==6.0.0",
 ]
 
 [tool.setuptools.packages.find]

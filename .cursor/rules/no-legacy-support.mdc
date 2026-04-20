@@ -1,0 +1,42 @@
+---
+description: This app is in development — never add legacy/backward-compat code paths
+alwaysApply: true
+---
+
+# No Legacy Support
+
+This app is pre-production. There are no external consumers whose data/APIs we must keep compatible with. When a schema, model, or contract changes, **migrate the code and data forward**; do not keep old shapes working.
+
+## Rules
+
+- Do **not** add "legacy fallback" branches in code (e.g. `if isinstance(x, str): ... else: ...`).
+- Do **not** keep normalization / coercion layers just to accept an old JSON shape.
+- Do **not** widen types (`str | dict`, `Any`) to preserve an older format.
+- Prefer **strict** validation (Pydantic / typed schemas) over defensive parsing.
+- Heavy refactors, renames, and breaking API/DB changes are acceptable — propose them directly.
+- It is fine to invalidate existing dev data; ask the user if a one-shot data migration is needed, but do not code around it silently.
+
+## Examples
+
+\`\`\`python
+# ❌ BAD — keeps UUID-string fallback "just in case"
+for x in cfg.get("identities") or []:
+    if isinstance(x, dict):
+        ids.append(x["id"])
+    else:
+        ids.append(str(x))
+
+# ✅ GOOD — trust the current schema
+model = JobAssignmentConfig.model_validate(cfg)
+ids = [i.id for i in model.identities]
+\`\`\`
+
+\`\`\`python
+# ❌ BAD — normalization function that exists only to reshape old data
+def normalize_job_config(cfg): ...
+
+# ✅ GOOD — one canonical Pydantic schema; validate on write, parse on read
+cfg = JobAssignmentConfig.model_validate(payload).model_dump(mode="json")
+\`\`\`
+
+When in doubt: **delete the legacy branch, update the callers, move on.**

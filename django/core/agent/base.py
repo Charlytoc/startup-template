@@ -3,9 +3,9 @@ Base agent classes and interfaces
 """
 
 import json
-import uuid
 import logging
 import traceback
+import uuid
 from typing import Dict, List, Any, Callable
 from pydantic import BaseModel, Field
 from openai.types.responses.response_output_item import ResponseOutputItem
@@ -17,6 +17,10 @@ from core.services.openai_service import OpenAIService
 from django.conf import settings
 from core.schemas.agentic_chat import ExchangeMessage
 logger = logging.getLogger(__name__)
+
+_ASSISTANT_HISTORY_DEV_PREFIX = (
+    "Prior assistant reply already sent in this Telegram chat:\n"
+)
 
 
 class AgentConfig(BaseModel):
@@ -73,27 +77,41 @@ class Agent:
         self.openai_service = openai_service
         self.config = config
 
-    def _parse_from_exchange_messages(self, messages: List[ExchangeMessage]) -> List[Message | ResponseOutputMessage]:
-        """Parse exchange messages to OpenAI messages"""
+    def _parse_from_exchange_messages(
+        self, messages: List[ExchangeMessage]
+    ) -> List[Message | ResponseOutputMessage]:
+        """Parse exchange messages to OpenAI input items.
+
+        User turns use :class:`Message` (``user`` role). Prior assistant replies are sent as
+        :class:`ResponseOutputMessage` (``assistant`` / ``message``) so they match API output shape.
+        """
         openai_messages: List[Message | ResponseOutputMessage] = []
         for message in messages:
+            raw = message.content
+            text = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False, default=str)
             if message.role == "user":
-                openai_messages.append(Message(
-                    role=message.role,
-                    content=[ResponseInputText(text=message.content, type="input_text")],
-                ))
+                openai_messages.append(
+                    Message(
+                        role="user",
+                        content=[ResponseInputText(text=text, type="input_text")],
+                    )
+                )
             elif message.role == "assistant":
-                openai_messages.append(ResponseOutputMessage(
-                    id = f"msg-{message.id}" if message.id else f"msg-{str(uuid.uuid4())}",
-                    role="assistant",
-                    content=[ResponseOutputText(
-                            text=message.content,
-                            type="output_text",
-                            annotations=[]
-                        )],
-                    type="message",
-                    status="completed"
-                ))
+                openai_messages.append(
+                    ResponseOutputMessage(
+                        id=f"msg_{uuid.uuid4().hex}",
+                        role="assistant",
+                        type="message",
+                        status="completed",
+                        content=[
+                            ResponseOutputText(
+                                type="output_text",
+                                text=text,
+                                annotations=[],
+                            )
+                        ],
+                    )
+                )
         return openai_messages
 
     def _parse_to_exchange_messages(self, messages: List[Message | ResponseOutputMessage]) -> List[ExchangeMessage]:
@@ -127,6 +145,15 @@ class Agent:
                         role="assistant",
                         content=message.content[0].text or ""
                     ))
+                elif message.role == "developer" and message.content and len(message.content) > 0:
+                    raw_dev = message.content[0].text or ""
+                    if raw_dev.startswith(_ASSISTANT_HISTORY_DEV_PREFIX):
+                        exchange_messages.append(
+                            ExchangeMessage(
+                                role="assistant",
+                                content=raw_dev[len(_ASSISTANT_HISTORY_DEV_PREFIX) :],
+                            )
+                        )
         return exchange_messages
 
     def start_agent_loop(

@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+import logging
+
 from core.agent.base import AgentTool, AgentToolConfig
-from core.services.telegram_bot import telegram_send_message
+from core.models import IntegrationAccount
+from core.services.telegram_bot import record_private_message_sent_event, telegram_send_message
+
+logger = logging.getLogger(__name__)
 
 
-def make_send_telegram_message_tool(*, bot_token: str, chat_id: int | str) -> AgentToolConfig:
+def make_send_telegram_message_tool(
+    *,
+    bot_token: str,
+    chat_id: int | str,
+    integration_account: IntegrationAccount,
+) -> AgentToolConfig:
     """Return a tool named ``send_telegram_message`` scoped to this bot and chat."""
 
     tool = AgentTool(
@@ -33,7 +43,18 @@ def make_send_telegram_message_tool(*, bot_token: str, chat_id: int | str) -> Ag
         text = (message or "").strip()
         if not text:
             return "Error: message must be non-empty."
-        telegram_send_message(bot_token, chat_id, text)
+        try:
+            msg_result = telegram_send_message(bot_token, chat_id, text)
+        except ValueError as exc:
+            return f"Error: {exc}"
+        try:
+            record_private_message_sent_event(integration_account, msg_result)
+        except Exception:
+            logger.exception(
+                "record_private_message_sent_event failed account=%s chat_id=%s",
+                integration_account.id,
+                chat_id,
+            )
         return "Message sent successfully."
 
     return AgentToolConfig(tool=tool, function=execute)

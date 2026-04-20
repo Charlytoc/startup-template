@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from ninja.errors import HttpError
 
-from core.integrations.actionables import ACTIONABLES, TELEGRAM_SEND_MESSAGE
-from core.models import IntegrationAccount, Workspace
+from core.integrations.actionables import (
+    ACTIONABLES,
+    TASKS_CREATE_RECURRING_JOB,
+    TASKS_SCHEDULE_ONE_OFF,
+    TELEGRAM_SEND_MESSAGE,
+)
+from core.integrations.event_types import EVENT_TYPES, TELEGRAM_PRIVATE_MESSAGE
+from core.models import CyberIdentity, IntegrationAccount, Workspace
+from core.schemas.job_assignment import (
+    JobAssignmentConfig,
+    JobAssignmentConfigAccount,
+    JobAssignmentEventTrigger,
+)
 
 
 def _account_row(acc: IntegrationAccount) -> dict[str, Any]:
@@ -21,11 +31,7 @@ def _account_row(acc: IntegrationAccount) -> dict[str, Any]:
 
 
 def list_actionable_catalog_for_workspace(workspace: Workspace) -> list[dict[str, Any]]:
-    """Return UI-ready rows: one entry per (actionable, integration account) binding where applicable.
-
-    Actionables that are not tied to a specific integration (future) can be appended here with
-    ``integration_account_id`` omitted.
-    """
+    """UI-ready rows: one entry per (actionable, integration account) binding where applicable."""
     out: list[dict[str, Any]] = []
     accounts = list(
         IntegrationAccount.objects.filter(workspace=workspace).exclude(
@@ -45,79 +51,89 @@ def list_actionable_catalog_for_workspace(workspace: Workspace) -> list[dict[str
                     "integration": _account_row(acc),
                 }
             )
+    for a in (ACTIONABLES[TASKS_SCHEDULE_ONE_OFF.slug], ACTIONABLES[TASKS_CREATE_RECURRING_JOB.slug]):
+        out.append(
+            {
+                "slug": a.slug,
+                "name": a.name,
+                "description": a.description,
+                "provider": a.provider,
+                "integration_account_id": None,
+                "integration": None,
+            }
+        )
     return out
 
 
-def validate_job_assignment_config(*, workspace: Workspace, config: dict[str, Any]) -> None:
-    """Light validation: accounts / identities / actions reference workspace-owned rows and known slugs."""
-    from core.integrations.event_types import EVENT_TYPES
-    from core.models import CyberIdentity
+def validate_job_assignment_config(
+    *, workspace: Workspace, config: JobAssignmentConfig
+) -> JobAssignmentConfig:
+    """Cross-check a parsed ``JobAssignmentConfig`` against DB state; enrich accounts and triggers.
 
-    if not isinstance(config, dict):
-        raise HttpError(400, "config must be an object.")
+    Mutates ``config`` in place and also returns it. Raises :class:`HttpError` on invalid references.
+    """
+    for i, acc in enumerate(config.accounts):
+        stored = IntegrationAccount.objects.filter(id=acc.id, workspace=workspace).first()
+        if stored is None:
+            raise HttpError(400, f"config.accounts[{i}] is not in this workspace.")
+        if stored.provider != acc.provider:
+            raise HttpError(
+                400,
+                f"config.accounts[{i}] provider mismatch (stored={stored.provider!r}, sent={acc.provider!r}).",
+            )
 
-    account_ids = config.get("accounts") or []
-    if account_ids is not None and not isinstance(account_ids, list):
-        raise HttpError(400, "config.accounts must be a list.")
-    for raw in account_ids:
-        try:
-            uid = uuid.UUID(str(raw))
-        except (TypeError, ValueError, AttributeError):
-            raise HttpError(400, f"Invalid integration account id in accounts: {raw!r}.")
-        if not IntegrationAccount.objects.filter(id=uid, workspace=workspace).exists():
-            raise HttpError(400, "One or more integration accounts are not in this workspace.")
-
-    identity_ids = config.get("identities") or []
-    if identity_ids is not None and not isinstance(identity_ids, list):
-        raise HttpError(400, "config.identities must be a list.")
-    for raw in identity_ids:
-        try:
-            uid = uuid.UUID(str(raw))
-        except (TypeError, ValueError, AttributeError):
-            raise HttpError(400, f"Invalid cyber identity id in identities: {raw!r}.")
-        if not CyberIdentity.objects.filter(id=uid, workspace=workspace).exists():
-            raise HttpError(400, "One or more cyber identities are not in this workspace.")
-    if len(identity_ids) == 0:
+    if len(config.identities) == 0:
         raise HttpError(400, "At least one cyber identity is required (config.identities).")
+    for i, ident in enumerate(config.identities):
+        stored = CyberIdentity.objects.filter(id=ident.id, workspace=workspace).first()
+        if stored is None:
+            raise HttpError(400, f"config.identities[{i}] is not in this workspace.")
+        if stored.type != ident.type:
+            raise HttpError(
+                400,
+                f"config.identities[{i}] type mismatch (stored={stored.type!r}, sent={ident.type!r}).",
+            )
 
-    triggers = config.get("triggers") or []
-    if not isinstance(triggers, list):
-        raise HttpError(400, "config.triggers must be a list.")
-    for i, tr in enumerate(triggers):
-        if not isinstance(tr, dict):
-            raise HttpError(400, f"config.triggers[{i}] must be an object.")
-        t = tr.get("type")
-        if t not in ("cron", "event"):
-            raise HttpError(400, f"config.triggers[{i}].type must be 'cron' or 'event'.")
-        if t == "event":
-            on = tr.get("on")
-            if not on or not isinstance(on, str):
-                raise HttpError(400, f"config.triggers[{i}].on must be a non-empty event slug string.")
-            if on not in EVENT_TYPES:
-                raise HttpError(400, f"Unknown event slug: {on!r}.")
+    for i, tr in enumerate(config.triggers):
+        if isinstance(tr, JobAssignmentEventTrigger) and tr.on not in EVENT_TYPES:
+            raise HttpError(400, f"config.triggers[{i}] unknown event slug: {tr.on!r}.")
 
-    actions = config.get("actions") or []
-    if not isinstance(actions, list):
-        raise HttpError(400, "config.actions must be a list.")
-    for i, act in enumerate(actions):
-        if not isinstance(act, dict):
-            raise HttpError(400, f"config.actions[{i}] must be an object.")
-        slug = act.get("actionable_slug") or act.get("actionable_id")
-        if not slug or not isinstance(slug, str):
-            raise HttpError(400, f"config.actions[{i}] needs actionable_slug (string).")
-        catalog = ACTIONABLES.get(slug)
+    seen_accounts = {acc.id for acc in config.accounts}
+    for i, act in enumerate(config.actions):
+        catalog = ACTIONABLES.get(act.actionable_slug)
         if catalog is None:
-            raise HttpError(400, f"Unknown actionable slug: {slug!r}.")
-        iid = act.get("integration_account_id")
+            raise HttpError(400, f"config.actions[{i}] unknown actionable slug: {act.actionable_slug!r}.")
+        if catalog.provider == "system":
+            if act.integration_account_id is not None:
+                raise HttpError(
+                    400,
+                    f"Action {act.actionable_slug!r} is a system capability and must not have integration_account_id.",
+                )
+            continue
         if catalog.provider == "telegram":
-            if not iid:
-                raise HttpError(400, f"Action {slug!r} requires integration_account_id.")
-            try:
-                acc_uuid = uuid.UUID(str(iid))
-            except (TypeError, ValueError, AttributeError):
-                raise HttpError(400, f"Invalid integration_account_id on action {slug!r}.")
-            acc = IntegrationAccount.objects.filter(id=acc_uuid, workspace=workspace).first()
+            if act.integration_account_id is None:
+                raise HttpError(400, f"Action {act.actionable_slug!r} requires integration_account_id.")
+            acc = IntegrationAccount.objects.filter(
+                id=act.integration_account_id, workspace=workspace
+            ).first()
             if acc is None:
-                raise HttpError(400, f"integration_account_id for action {slug!r} is not in this workspace.")
+                raise HttpError(
+                    400,
+                    f"integration_account_id for action {act.actionable_slug!r} is not in this workspace.",
+                )
             if acc.provider != IntegrationAccount.Provider.TELEGRAM:
-                raise HttpError(400, f"Action {slug!r} requires a Telegram integration account.")
+                raise HttpError(
+                    400, f"Action {act.actionable_slug!r} requires a Telegram integration account."
+                )
+            if acc.id not in seen_accounts:
+                config.accounts.append(
+                    JobAssignmentConfigAccount(id=acc.id, provider=acc.provider)
+                )
+                seen_accounts.add(acc.id)
+
+    if not config.triggers:
+        config.triggers.append(
+            JobAssignmentEventTrigger(type="event", on=TELEGRAM_PRIVATE_MESSAGE.slug, filter={})
+        )
+
+    return config

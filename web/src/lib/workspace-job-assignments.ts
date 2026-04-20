@@ -15,6 +15,27 @@ export type ActionableCatalogRow = {
   };
 };
 
+export type JobAssignmentConfigAccount = {
+  id: string;
+  provider: string;
+};
+
+export type JobAssignmentConfigIdentity = {
+  id: string;
+  type: string;
+  config: Record<string, unknown>;
+};
+
+/** Canonical ``JobAssignment.config`` from the API (after create/update). */
+export type JobAssignmentConfig = {
+  accounts: JobAssignmentConfigAccount[];
+  identities: JobAssignmentConfigIdentity[];
+  triggers: Record<string, unknown>[];
+  actions: Record<string, unknown>[];
+  approval_policy?: Record<string, unknown> | null;
+  output_schema?: Record<string, unknown> | null;
+};
+
 export type JobAssignment = {
   id: string;
   workspace_id: number;
@@ -22,7 +43,7 @@ export type JobAssignment = {
   description: string;
   instructions: string;
   enabled: boolean;
-  config: Record<string, unknown>;
+  config: JobAssignmentConfig;
   created: string;
 };
 
@@ -31,7 +52,8 @@ export type JobAssignmentCreateInput = {
   description?: string;
   instructions?: string;
   enabled?: boolean;
-  config?: Record<string, unknown>;
+  /** Partial config is merged with server defaults and coerced to ``JobAssignmentConfig``. */
+  config?: Partial<JobAssignmentConfig> & Record<string, unknown>;
 };
 
 export type JobAssignmentUpdateInput = Partial<JobAssignmentCreateInput>;

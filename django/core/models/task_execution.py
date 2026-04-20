@@ -12,6 +12,7 @@ from model_utils.models import TimeStampedModel
 from core.models.job_assignment import JobAssignment
 from core.models.workspace import Workspace
 from core.models.workspace_member import WorkspaceMember
+from core.schemas.task_execution import TaskExecutionInputs, TaskExecutionOutputs
 
 
 class TaskExecution(TimeStampedModel):
@@ -66,6 +67,11 @@ class TaskExecution(TimeStampedModel):
         help_text="Run outputs: final_output, artifact ids, agent_session_log ids, error details.",
     )
 
+    scheduled_to = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this execution should run (deferred / scheduled). Null = run as soon as possible.",
+    )
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
@@ -76,6 +82,7 @@ class TaskExecution(TimeStampedModel):
         indexes = [
             models.Index(fields=("workspace", "status", "-created")),
             models.Index(fields=("job_assignment", "-created")),
+            models.Index(fields=("status", "scheduled_to")),
         ]
 
     def __str__(self) -> str:
@@ -100,3 +107,15 @@ class TaskExecution(TimeStampedModel):
     def save(self, *args: Any, **kwargs: Any) -> None:
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def get_inputs(self) -> TaskExecutionInputs:
+        return TaskExecutionInputs.model_validate(self.inputs)
+
+    def set_inputs(self, inputs: TaskExecutionInputs) -> None:
+        self.inputs = inputs.model_dump(mode="json")
+
+    def get_outputs(self) -> TaskExecutionOutputs:
+        return TaskExecutionOutputs.model_validate(self.outputs)
+
+    def set_outputs(self, outputs: TaskExecutionOutputs) -> None:
+        self.outputs = outputs.model_dump(mode="json")
