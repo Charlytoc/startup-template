@@ -54,6 +54,12 @@ const CONVERSATION_STATUS_COLOR: Record<string, string> = {
   deleted: "red",
 };
 
+const SENDER_STATUS_COLOR: Record<string, string> = {
+  pending: "yellow",
+  not_required: "gray",
+  approved: "green",
+};
+
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleString();
@@ -179,10 +185,7 @@ export default function IntegrationAccountDetailPage() {
     },
   });
 
-  const approvedSenders = useMemo(() => {
-    const raw = account?.config?.approved_senders;
-    return Array.isArray(raw) ? (raw as string[]) : [];
-  }, [account?.config]);
+  const senders = useMemo(() => account?.senders ?? [], [account?.senders]);
 
   const configPretty = useMemo(() => {
     if (!account?.config) return "{}";
@@ -300,22 +303,6 @@ export default function IntegrationAccountDetailPage() {
                 When someone messages your bot for the first time, they receive a 12-digit code.
                 Paste it here to let them talk to this bot.
               </Text>
-              {approvedSenders.length > 0 ? (
-                <Group gap={4}>
-                  <Text size="xs" c="dimmed">
-                    Already approved:
-                  </Text>
-                  {approvedSenders.map((id) => (
-                    <Badge key={id} variant="light" size="sm">
-                      {id}
-                    </Badge>
-                  ))}
-                </Group>
-              ) : (
-                <Text size="xs" c="dimmed">
-                  No senders approved yet.
-                </Text>
-              )}
               {approveError ? (
                 <Alert color="red" title="Could not approve" onClose={() => setApproveError(null)} withCloseButton>
                   {approveError}
@@ -346,6 +333,75 @@ export default function IntegrationAccountDetailPage() {
                 </Button>
               </Group>
             </Stack>
+          </Paper>
+        ) : null}
+
+        {account ? (
+          <Paper withBorder radius="md" p="lg">
+            <Group justify="space-between" align="center" mb="sm">
+              <Title order={4}>Senders</Title>
+              <Text size="xs" c="dimmed">
+                External counterparts seen on this account, with their approval state and any
+                context the agent has extracted.
+              </Text>
+            </Group>
+            {senders.length === 0 ? (
+              <Text c="dimmed" size="sm">
+                No senders have interacted with this account yet.
+              </Text>
+            ) : (
+              <Table striped highlightOnHover verticalSpacing="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Thread id</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>First seen</Table.Th>
+                    <Table.Th>Last seen</Table.Th>
+                    <Table.Th>Extractions</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {senders.map((s) => {
+                    const hasExtractions =
+                      s.extractions && Object.keys(s.extractions).length > 0;
+                    return (
+                      <Table.Tr key={s.external_thread_id}>
+                        <Table.Td>
+                          <Text size="xs" ff="monospace">
+                            {s.external_thread_id}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge
+                            color={SENDER_STATUS_COLOR[s.approval_status] ?? "gray"}
+                            variant="light"
+                          >
+                            {s.approval_status}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs">{formatDateTime(s.first_seen_at)}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs">{formatDateTime(s.last_seen_at)}</Text>
+                        </Table.Td>
+                        <Table.Td style={{ maxWidth: 360 }}>
+                          {hasExtractions ? (
+                            <Code block>
+                              {JSON.stringify(s.extractions, null, 2)}
+                            </Code>
+                          ) : (
+                            <Text size="xs" c="dimmed">
+                              —
+                            </Text>
+                          )}
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            )}
           </Paper>
         ) : null}
 

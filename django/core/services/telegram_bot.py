@@ -16,11 +16,17 @@ from django.http import HttpRequest
 
 from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
 from core.models import IntegrationAccount, IntegrationEvent, Workspace
+from core.schemas.integration_account import SenderApprovalStatus
+from core.services.integration_senders import (
+    get_sender,
+    set_approval_status,
+    upsert_sender,
+)
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
 
 CONFIG_WEBHOOK_PATH_TOKEN = "webhook_path_token"
-CONFIG_APPROVED_SENDERS = "approved_senders"
+CONFIG_SENDERS = "senders"
 
 AUTH_BOT_TOKEN = "bot_token"
 AUTH_WEBHOOK_SECRET = "webhook_secret_token"
@@ -110,14 +116,8 @@ def get_bot_token(account: IntegrationAccount) -> str:
 
 
 def is_telegram_user_approved(account: IntegrationAccount, telegram_user_id: int) -> bool:
-    cfg = account.config or {}
-    raw = cfg.get(CONFIG_APPROVED_SENDERS)
-    if not raw:
-        return False
-    if not isinstance(raw, list):
-        return False
-    sid = str(telegram_user_id)
-    return any(str(x).strip() == sid for x in raw)
+    sender = get_sender(account, str(telegram_user_id))
+    return bool(sender and sender.approval_status == SenderApprovalStatus.APPROVED)
 
 
 def generate_approval_code(digits: int = 12) -> str:
@@ -142,8 +142,8 @@ def build_webhook_url(webhook_path_token: str) -> str:
 
 def ensure_telegram_config_defaults(config: dict[str, Any]) -> dict[str, Any]:
     out = dict(config) if config else {}
-    if CONFIG_APPROVED_SENDERS not in out:
-        out[CONFIG_APPROVED_SENDERS] = []
+    if CONFIG_SENDERS not in out:
+        out[CONFIG_SENDERS] = []
     return out
 
 
@@ -182,6 +182,12 @@ def handle_inbound_update(account: IntegrationAccount, update: dict[str, Any]) -
 
         process_approved_message(account, message)
         return
+
+    upsert_sender(
+        account,
+        str(telegram_user_id),
+        default_status=SenderApprovalStatus.PENDING,
+    )
 
     pending_key = cache_key_pending(account.id, telegram_user_id)
     existing_code = cache.get(pending_key)
@@ -341,18 +347,11 @@ def approve_sender_code(*, account: IntegrationAccount, code: str) -> str:
 
     telegram_user_int = int(telegram_user_id)
 
-    with transaction.atomic():
-        locked = IntegrationAccount.objects.select_for_update().get(pk=account.pk)
-        cfg = ensure_telegram_config_defaults(dict(locked.config or {}))
-        senders: list[str] = []
-        for x in cfg.get(CONFIG_APPROVED_SENDERS) or []:
-            if isinstance(x, str) and x.strip():
-                senders.append(x.strip())
-        if telegram_user_id not in senders:
-            senders.append(telegram_user_id)
-        cfg[CONFIG_APPROVED_SENDERS] = senders
-        locked.config = cfg
-        locked.save(update_fields=["config", "modified"])
+    set_approval_status(
+        account,
+        telegram_user_id,
+        SenderApprovalStatus.APPROVED,
+    )
 
     clear_pending_approval(account.id, telegram_user_int, code)
 

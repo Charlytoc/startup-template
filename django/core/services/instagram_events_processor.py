@@ -7,7 +7,9 @@ from typing import Any
 
 from core.integrations.event_types import INSTAGRAM_DM_MESSAGE
 from core.models import IntegrationAccount
+from core.schemas.integration_account import SenderApprovalStatus
 from core.services.chat_clear_commands import CLEAR_CONTEXT_REPLY, is_clear_context_text
+from core.services.integration_senders import upsert_sender
 from core.services.conversations import (
     append_user_message,
     archive_conversation,
@@ -40,6 +42,12 @@ def process_instagram_dm(
         sender_igsid,
         len(text),
         str(message.get("mid") or "")[:80],
+    )
+
+    upsert_sender(
+        account,
+        sender_igsid,
+        default_status=SenderApprovalStatus.NOT_REQUIRED,
     )
 
     if is_clear_context_text(text):

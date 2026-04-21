@@ -13,6 +13,8 @@ from core.services.conversations import (
     find_active_conversation,
     get_or_create_active_conversation,
 )
+from core.schemas.integration_account import SenderApprovalStatus
+from core.services.integration_senders import upsert_sender
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
 from core.services.task_execution_runner import (
     create_queued_event_task_execution,
@@ -55,6 +57,12 @@ def process_approved_message(account: IntegrationAccount, message: dict[str, Any
     if chat_id is None:
         return
     external_thread_id = str(chat_id)
+
+    upsert_sender(
+        account,
+        external_thread_id,
+        default_status=SenderApprovalStatus.APPROVED,
+    )
 
     if _is_clear_context_command(message):
         convo = find_active_conversation(

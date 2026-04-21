@@ -31,6 +31,19 @@ export async function fetchWorkspaceIntegrations(
   return response.json() as Promise<WorkspaceIntegrationItem[]>;
 }
 
+export type IntegrationAccountSenderApprovalStatus =
+  | "pending"
+  | "not_required"
+  | "approved";
+
+export type IntegrationAccountSender = {
+  external_thread_id: string;
+  approval_status: IntegrationAccountSenderApprovalStatus;
+  extractions: Record<string, unknown>;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+};
+
 export type WorkspaceIntegrationDetail = {
   id: string;
   workspace_id: number;
@@ -39,6 +52,7 @@ export type WorkspaceIntegrationDetail = {
   status: string;
   external_account_id: string;
   config: Record<string, unknown>;
+  senders: IntegrationAccountSender[];
   last_synced_at: string | null;
   last_error: string;
   created: string;

@@ -123,6 +123,14 @@ def list_workspace_integrations(request, workspace_id: int):
     ]
 
 
+class IntegrationAccountSenderOut(Schema):
+    external_thread_id: str
+    approval_status: str
+    extractions: dict = {}
+    first_seen_at: datetime | None = None
+    last_seen_at: datetime | None = None
+
+
 class IntegrationAccountDetail(Schema):
     id: uuid.UUID
     workspace_id: int
@@ -131,10 +139,26 @@ class IntegrationAccountDetail(Schema):
     status: str
     external_account_id: str
     config: dict
+    senders: list[IntegrationAccountSenderOut]
     last_synced_at: datetime | None
     last_error: str
     created: datetime
     modified: datetime
+
+
+def _serialize_senders(row: IntegrationAccount) -> list[IntegrationAccountSenderOut]:
+    from core.services.integration_senders import list_senders
+
+    return [
+        IntegrationAccountSenderOut(
+            external_thread_id=s.external_thread_id,
+            approval_status=s.approval_status.value,
+            extractions=s.extractions or {},
+            first_seen_at=s.first_seen_at,
+            last_seen_at=s.last_seen_at,
+        )
+        for s in list_senders(row)
+    ]
 
 
 def _integration_account_detail(row: IntegrationAccount) -> IntegrationAccountDetail:
@@ -146,6 +170,7 @@ def _integration_account_detail(row: IntegrationAccount) -> IntegrationAccountDe
         status=row.status,
         external_account_id=row.external_account_id,
         config=row.config or {},
+        senders=_serialize_senders(row),
         last_synced_at=row.last_synced_at,
         last_error=row.last_error or "",
         created=row.created,
