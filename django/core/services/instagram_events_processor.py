@@ -9,14 +9,20 @@ from core.integrations.event_types import INSTAGRAM_DM_MESSAGE
 from core.models import IntegrationAccount
 from core.schemas.integration_account import SenderApprovalStatus
 from core.services.chat_clear_commands import CLEAR_CONTEXT_REPLY, is_clear_context_text
-from core.services.integration_senders import upsert_sender
+from core.services.integration_senders import merge_extractions, upsert_sender
 from core.services.conversations import (
     append_user_message,
     archive_conversation,
     find_active_conversation,
     get_or_create_active_conversation,
 )
-from core.services.instagram_service import get_access_token, get_ig_user_id, instagram_send_message
+from core.services.instagram_service import (
+    get_access_token,
+    get_ig_user_id,
+    instagram_dm_sender_handle_from_webhook_or_profile,
+    instagram_fetch_participant_profile,
+    instagram_send_message,
+)
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
 from core.services.task_execution_runner import (
     create_queued_event_task_execution,
@@ -24,18 +30,6 @@ from core.services.task_execution_runner import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _instagram_sender_handle_from_messaging(messaging: dict[str, Any]) -> str | None:
-    """Return ``@username`` when Meta includes it on ``sender`` (often absent; then ``None``)."""
-    sender = messaging.get("sender")
-    if not isinstance(sender, dict):
-        return None
-    username = sender.get("username")
-    if not isinstance(username, str):
-        return None
-    u = username.strip().lstrip("@")
-    return f"@{u}" if u else None
 
 
 def process_instagram_dm(
@@ -56,18 +50,34 @@ def process_instagram_dm(
         str(message.get("mid") or "")[:80],
     )
 
+    token = get_access_token(account)
+    profile = (
+        instagram_fetch_participant_profile(
+            account=account, access_token=token, participant_igsid=sender_igsid
+        )
+        if token
+        else None
+    )
+    handle = instagram_dm_sender_handle_from_webhook_or_profile(messaging, profile)
+
     upsert_sender(
         account,
         sender_igsid,
         default_status=SenderApprovalStatus.NOT_REQUIRED,
-        handle=_instagram_sender_handle_from_messaging(messaging),
+        handle=handle,
     )
+
+    if profile:
+        merge_extractions(
+            account,
+            sender_igsid,
+            {"instagram_user_profile": dict(profile)},
+        )
 
     if is_clear_context_text(text):
         convo = find_active_conversation(account=account, external_thread_id=sender_igsid)
         if convo is not None:
             archive_conversation(convo)
-        token = get_access_token(account)
         ig_user_id = get_ig_user_id(account)
         if token and ig_user_id:
             try:

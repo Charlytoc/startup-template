@@ -26,12 +26,13 @@ class IntegrationAccountSender(BaseModel):
     """One external counterpart we have observed on an integration account.
 
     ``external_thread_id`` is the provider identifier used for routing (Telegram ``chat_id``,
-    Instagram IGSID, ...). ``extractions`` is a free-form JSON bag that future agent tools
+    Instagram IGSID, ...).     ``extractions`` is a free-form JSON bag that future agent tools
     (``*.extract_user_context``) can fill with arbitrary data about the counterpart.
+    Instagram inbound traffic may set ``instagram_user_profile`` (``username``, ``name`` from Graph).
 
     ``handle`` is a human-oriented id string for display or future tools (Telegram: ``@username``
-    when present, else numeric ``from.id``; Instagram: ``@username`` when the webhook includes
-    it, otherwise often unset).
+    when present, else numeric ``from.id``; Instagram: ``@username`` from the webhook when
+    present, otherwise from the Instagram User Profile API for the sender IGSID when allowed).
     """
 
     model_config = ConfigDict(extra="allow")

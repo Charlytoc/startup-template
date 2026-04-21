@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 INSTAGRAM_OAUTH_URL = "https://www.instagram.com/oauth/authorize"
 INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token"
 INSTAGRAM_GRAPH_BASE = "https://graph.instagram.com"
-INSTAGRAM_GRAPH_API_VERSION = "v21.0"
+INSTAGRAM_GRAPH_API_VERSION = "v25.0"
 
 # Keys in IntegrationAccount.auth (encrypted)
 AUTH_ACCESS_TOKEN = "access_token"
@@ -309,6 +309,116 @@ def instagram_disable_webhook_subscriptions(*, access_token: str, ig_user_id: st
 
 def get_access_token(account: IntegrationAccount) -> str:
     return str((account.auth or {}).get(AUTH_ACCESS_TOKEN, "")).strip()
+
+
+def _normalize_instagram_graph_profile_payload(data: dict[str, Any]) -> dict[str, str]:
+    """Pick ``username`` / ``name`` from Graph JSON into a small flat dict (bare username, no ``@``)."""
+    out: dict[str, str] = {}
+    raw_u = data.get("username")
+    if isinstance(raw_u, str) and raw_u.strip():
+        out["username"] = raw_u.strip().lstrip("@")
+    raw_n = data.get("name")
+    if isinstance(raw_n, str) and raw_n.strip():
+        out["name"] = raw_n.strip()
+    return out
+
+
+def instagram_fetch_participant_profile(
+    *,
+    account: IntegrationAccount,
+    access_token: str,
+    participant_igsid: str,
+) -> dict[str, str] | None:
+    """Fetch DM participant fields from the Instagram User Profile API (IGSID).
+
+    Returns a dict with zero or more of: ``username``, ``name`` (both plain strings;
+    ``username`` has no ``@`` prefix). Used for ``handle`` and for ``extractions`` enrichment.
+
+    **Instagram User Profile API** — ``GET /<INSTAGRAM_SCOPED_ID>?fields=name,username`` on
+    ``graph.instagram.com`` with the Instagram user access token for the professional account
+    that received the webhook.
+
+    **User consent:** required after the user has messaged your app user's professional account
+    (or certain messaging opt-ins / menus); otherwise Graph may return a consent error.
+
+    **Permissions:** ``instagram_business_basic``, ``instagram_business_manage_messages``.
+
+    Reference:
+    https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api/user-profile/
+    """
+    igsid = str(participant_igsid or "").strip()
+    if not igsid or not access_token:
+        return None
+    cache_key = f"ig_participant_profile:{account.id}:{igsid}"
+    cached = cache.get(cache_key)
+    if isinstance(cached, str) and cached.strip():
+        raw_s = cached.strip()
+        try:
+            parsed = json.loads(cached)
+        except (TypeError, ValueError):
+            parsed = None
+        if isinstance(parsed, dict) and parsed:
+            filtered = {
+                k: str(v)
+                for k, v in parsed.items()
+                if k in ("username", "name") and str(v).strip()
+            }
+            if filtered:
+                return filtered
+        # Legacy cache: bare username string from older ``ig_participant_username`` entries
+        if not raw_s.startswith("{"):
+            u = raw_s.lstrip("@")
+            return {"username": u} if u else None
+
+    url = f"{INSTAGRAM_GRAPH_BASE}/{INSTAGRAM_GRAPH_API_VERSION}/{igsid}"
+    resp = requests.get(
+        url,
+        params={"fields": "name,username", "access_token": access_token},
+        timeout=15,
+    )
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.warning(
+            "instagram participant profile invalid_json http_status=%s igsid_prefix=%s",
+            resp.status_code,
+            igsid[:12],
+        )
+        return None
+    if not isinstance(data, dict):
+        return None
+    if "error" in data:
+        err = data.get("error")
+        logger.info(
+            "instagram participant profile graph_error igsid_prefix=%s err=%s",
+            igsid[:12],
+            json.dumps(err, default=str)[:500] if err is not None else "",
+        )
+        return None
+    normalized = _normalize_instagram_graph_profile_payload(data)
+    if not normalized:
+        return None
+    cache.set(cache_key, json.dumps(normalized, ensure_ascii=False), 86_400)
+    return normalized
+
+
+def instagram_dm_sender_handle_from_webhook_or_profile(
+    messaging: dict[str, Any],
+    profile: dict[str, str] | None,
+) -> str | None:
+    """``@username`` from webhook ``sender`` if present; else from User Profile ``profile``."""
+    sender = messaging.get("sender")
+    if isinstance(sender, dict):
+        wu = sender.get("username")
+        if isinstance(wu, str):
+            u = wu.strip().lstrip("@")
+            if u:
+                return f"@{u}"
+    if profile:
+        u = profile.get("username", "").strip().lstrip("@")
+        if u:
+            return f"@{u}"
+    return None
 
 
 def get_ig_user_id(account: IntegrationAccount) -> str:
