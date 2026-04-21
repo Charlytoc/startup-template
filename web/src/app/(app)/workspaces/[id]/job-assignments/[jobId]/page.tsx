@@ -13,9 +13,11 @@ import {
   Loader,
   MultiSelect,
   Paper,
+  Select,
   Stack,
   Switch,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -151,7 +153,7 @@ export default function JobAssignmentDetailPage() {
   const [roleName, setRoleName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [identityIds, setIdentityIds] = useState<string[]>([]);
+  const [identityId, setIdentityId] = useState<string | null>(null);
   const [actionKeys, setActionKeys] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -160,7 +162,8 @@ export default function JobAssignmentDetailPage() {
     setRoleName(job.role_name);
     setDescription(job.description ?? "");
     setInstructions(job.instructions ?? "");
-    setIdentityIds((job.config.identities ?? []).map((i) => i.id));
+    const ids = (job.config.identities ?? []).map((i) => i.id);
+    setIdentityId(ids[0] ?? null);
     setActionKeys(actionsToKeys(job.config.actions ?? []));
     setFormError(null);
   }, [job]);
@@ -173,7 +176,10 @@ export default function JobAssignmentDetailPage() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const identityPayload = buildIdentitiesPayload(identityIds, identities ?? []);
+      const identityPayload = buildIdentitiesPayload(
+        identityId ? [identityId] : [],
+        identities ?? [],
+      );
       const actions = buildActionsPayload(actionKeys);
       return updateJobAssignment(token!, orgId!, workspaceId, jobId, {
         role_name: roleName.trim(),
@@ -350,24 +356,31 @@ export default function JobAssignmentDetailPage() {
                 value={roleName}
                 onChange={(e) => setRoleName(e.currentTarget.value)}
               />
-              <TextInput
+              <Textarea
                 label="Description"
                 value={description}
                 onChange={(e) => setDescription(e.currentTarget.value)}
+                autosize
+                minRows={3}
+                maxRows={16}
               />
-              <TextInput
+              <Textarea
                 label="Instructions"
                 value={instructions}
                 onChange={(e) => setInstructions(e.currentTarget.value)}
+                autosize
+                minRows={8}
+                maxRows={24}
               />
-              <MultiSelect
-                label="Cyber identities"
-                description="Change which persona(s) are in charge of this job."
+              <Select
+                label="Cyber identity"
+                description="The workspace persona this job runs as."
                 data={identityOptions}
-                value={identityIds}
-                onChange={setIdentityIds}
+                value={identityId}
+                onChange={setIdentityId}
                 searchable
                 clearable={false}
+                allowDeselect={false}
               />
               <MultiSelect
                 label="Actions"
@@ -381,7 +394,7 @@ export default function JobAssignmentDetailPage() {
                   loading={saveMutation.isPending}
                   onClick={() => saveMutation.mutate()}
                   disabled={
-                    !roleName.trim() || actionKeys.length === 0 || identityIds.length === 0
+                    !roleName.trim() || actionKeys.length === 0 || identityId == null
                   }
                 >
                   Save changes

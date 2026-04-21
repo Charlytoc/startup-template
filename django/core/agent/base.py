@@ -235,7 +235,6 @@ class Agent:
                     logger.info(f"Processing {len(function_calls)} function calls")
 
                     for function_call in function_calls:
-                        logger.info(f"Processing function call: {function_call}")
                         function_name = function_call.name
                         function_args = json.loads(function_call.arguments) or {}
                         call_id = function_call.call_id
@@ -262,8 +261,6 @@ class Agent:
                             else:
                                 args_preview = args_str
                             desc += f"\n{args_preview}"
-
-                        logger.info(desc)
 
                         # Execute function
                         if function_name in tool_registry:

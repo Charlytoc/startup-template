@@ -16,6 +16,7 @@ import {
   Modal,
   MultiSelect,
   Paper,
+  Select,
   Stack,
   Switch,
   Table,
@@ -143,7 +144,7 @@ export default function WorkspaceJobAssignmentsPage() {
   const [roleName, setRoleName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [selectedIdentityIds, setSelectedIdentityIds] = useState<string[]>([]);
+  const [selectedIdentityId, setSelectedIdentityId] = useState<string | null>(null);
   const [selectedActionKeys, setSelectedActionKeys] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -153,7 +154,10 @@ export default function WorkspaceJobAssignmentsPage() {
 
   const createMutation = useMutation({
     mutationFn: () => {
-      const identityPayload = buildIdentitiesPayload(selectedIdentityIds, identities ?? []);
+      const identityPayload = buildIdentitiesPayload(
+        selectedIdentityId ? [selectedIdentityId] : [],
+        identities ?? [],
+      );
       const actions = buildActionsPayload(selectedActionKeys);
       return createJobAssignment(token!, orgId!, workspaceId, {
         role_name: roleName.trim(),
@@ -171,7 +175,7 @@ export default function WorkspaceJobAssignmentsPage() {
       setRoleName("");
       setDescription("");
       setInstructions("");
-      setSelectedIdentityIds([]);
+      setSelectedIdentityId(null);
       setSelectedActionKeys([]);
       closeCreate();
       invalidate();
@@ -216,9 +220,9 @@ export default function WorkspaceJobAssignmentsPage() {
   );
 
   useEffect(() => {
-    if (!identities?.length || selectedIdentityIds.length > 0) return;
-    setSelectedIdentityIds([identities[0].id]);
-  }, [identities, selectedIdentityIds.length]);
+    if (!identities?.length || selectedIdentityId != null) return;
+    setSelectedIdentityId(identities[0].id);
+  }, [identities, selectedIdentityId]);
 
   if (!sessionOk || !displayUser) {
     return (
@@ -374,7 +378,7 @@ export default function WorkspaceJobAssignmentsPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Role</Table.Th>
-                  <Table.Th>Identities</Table.Th>
+                  <Table.Th>Identity</Table.Th>
                   <Table.Th>Enabled</Table.Th>
                   <Table.Th>Actions</Table.Th>
                   <Table.Th>Created</Table.Th>
@@ -401,14 +405,18 @@ export default function WorkspaceJobAssignmentsPage() {
                       </Table.Td>
                       <Table.Td>
                         <Stack gap={2}>
-                          {identityLabels.slice(0, 3).map((label, i) => (
-                            <Badge key={i} size="sm" variant="outline">
-                              {label}
+                          {identityLabels[0] ? (
+                            <Badge size="sm" variant="outline">
+                              {identityLabels[0]}
                             </Badge>
-                          ))}
-                          {identityLabels.length > 3 ? (
+                          ) : (
                             <Text size="xs" c="dimmed">
-                              +{identityLabels.length - 3} more
+                              —
+                            </Text>
+                          )}
+                          {identityLabels.length > 1 ? (
+                            <Text size="xs" c="dimmed">
+                              +{identityLabels.length - 1} more
                             </Text>
                           ) : null}
                         </Stack>
@@ -512,15 +520,16 @@ export default function WorkspaceJobAssignmentsPage() {
               setInstructions(value);
             }}
           />
-          <MultiSelect
-            label="Cyber identities"
-            placeholder="Pick at least one identity in charge of this job"
+          <Select
+            label="Cyber identity"
+            placeholder="Pick the identity in charge of this job"
             data={identityOptions}
-            value={selectedIdentityIds}
-            onChange={setSelectedIdentityIds}
+            value={selectedIdentityId}
+            onChange={setSelectedIdentityId}
             searchable
             clearable={false}
-            description="Required — the agent runs in the context of these workspace personas."
+            allowDeselect={false}
+            description="Required — the agent runs in the context of this workspace persona."
           />
           <MultiSelect
             label="Actions"
@@ -539,7 +548,7 @@ export default function WorkspaceJobAssignmentsPage() {
               loading={createMutation.isPending}
               onClick={() => createMutation.mutate()}
               disabled={
-                !roleName.trim() || selectedActionKeys.length === 0 || selectedIdentityIds.length === 0
+                !roleName.trim() || selectedActionKeys.length === 0 || selectedIdentityId == null
               }
             >
               Create

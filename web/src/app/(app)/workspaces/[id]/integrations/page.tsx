@@ -67,8 +67,24 @@ export default function WorkspaceIntegrationsPage() {
 
   const searchParams = useSearchParams();
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
-  const [igSuccess, setIgSuccess] = useState<boolean>(searchParams.get("instagram_connected") === "true");
-  const [igConnectError, setIgConnectError] = useState<string | null>(searchParams.get("instagram_error"));
+  const [igSuccess, setIgSuccess] = useState(false);
+  const [igConnectError, setIgConnectError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Number.isNaN(workspaceId)) return;
+    const connected = searchParams.get("instagram_connected") === "true";
+    const err = searchParams.get("instagram_error");
+    if (!connected && err == null) return;
+
+    if (connected) setIgSuccess(true);
+    if (err != null && err !== "") setIgConnectError(err);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("instagram_connected");
+    params.delete("instagram_error");
+    const base = `/workspaces/${workspaceId}/integrations`;
+    router.replace(params.toString() ? `${base}?${params.toString()}` : base, { scroll: false });
+  }, [workspaceId, router, searchParams]);
 
   useEffect(() => {
     const { user: stored } = readStoredAuth();
