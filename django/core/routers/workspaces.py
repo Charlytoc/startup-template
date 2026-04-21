@@ -10,6 +10,8 @@ from ninja.security import django_auth
 from pydantic import ValidationError
 
 from core.integrations.workspace_actionables import (
+    append_default_event_triggers_if_empty,
+    assert_unique_inbound_event_listeners,
     list_actionable_catalog_for_workspace,
     validate_job_assignment_config,
 )
@@ -559,8 +561,8 @@ class ActionableCatalogItem(Schema):
     name: str
     description: str
     provider: str
-    integration_account_id: str
-    integration: dict
+    integration_account_id: str | None = None
+    integration: dict | None = None
 
 
 @router.get(
@@ -660,8 +662,13 @@ def create_job_assignment(request, workspace_id: int, data: JobAssignmentCreateR
     if not role_name:
         return 400, ErrorResponseSchema(error="role_name is required.", error_code="ROLE_NAME_REQUIRED")
 
-    cfg_model = _parse_job_config(data.config or {})
-    validate_job_assignment_config(workspace=workspace, config=cfg_model)
+    raw_cfg = dict(data.config or {})
+    cfg_model = _parse_job_config(raw_cfg)
+    if "triggers" not in raw_cfg:
+        append_default_event_triggers_if_empty(cfg_model)
+    validate_job_assignment_config(
+        workspace=workspace, config=cfg_model, exclude_job_assignment_id=None
+    )
 
     row = JobAssignment(
         workspace=workspace,
@@ -728,8 +735,18 @@ def update_job_assignment(
         row.enabled = data.enabled
     if data.config is not None:
         cfg_model = _parse_job_config({**(row.config or {}), **data.config})
-        validate_job_assignment_config(workspace=workspace, config=cfg_model)
+        validate_job_assignment_config(
+            workspace=workspace,
+            config=cfg_model,
+            exclude_job_assignment_id=job_assignment_id,
+        )
         row.set_config(cfg_model)
+    elif data.enabled is True:
+        assert_unique_inbound_event_listeners(
+            workspace=workspace,
+            config=row.get_config(),
+            exclude_job_assignment_id=job_assignment_id,
+        )
     row.save()
     return 200, _job_assignment_response(row)
 

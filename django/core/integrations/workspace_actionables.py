@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from ninja.errors import HttpError
@@ -14,12 +15,77 @@ from core.integrations.actionables import (
     TELEGRAM_SEND_MESSAGE,
 )
 from core.integrations.event_types import EVENT_TYPES, INSTAGRAM_DM_MESSAGE, TELEGRAM_PRIVATE_MESSAGE
-from core.models import CyberIdentity, IntegrationAccount, Workspace
+from core.models import CyberIdentity, IntegrationAccount, JobAssignment, Workspace
 from core.schemas.job_assignment import (
     JobAssignmentConfig,
     JobAssignmentConfigAccount,
     JobAssignmentEventTrigger,
 )
+
+
+EXCLUSIVE_INBOUND_EVENTS = frozenset(
+    {TELEGRAM_PRIVATE_MESSAGE.slug, INSTAGRAM_DM_MESSAGE.slug},
+)
+
+
+def append_default_event_triggers_if_empty(config: JobAssignmentConfig) -> None:
+    """When ``triggers`` was omitted from the API payload, infer inbound listeners from send actions."""
+    if config.triggers:
+        return
+    if any(a.actionable_slug == TELEGRAM_SEND_MESSAGE.slug for a in config.actions):
+        config.triggers.append(
+            JobAssignmentEventTrigger(type="event", on=TELEGRAM_PRIVATE_MESSAGE.slug, filter={})
+        )
+    if any(a.actionable_slug == INSTAGRAM_SEND_MESSAGE.slug for a in config.actions):
+        config.triggers.append(
+            JobAssignmentEventTrigger(type="event", on=INSTAGRAM_DM_MESSAGE.slug, filter={})
+        )
+
+
+def _inbound_listener_pairs(config: JobAssignmentConfig) -> set[tuple[str, uuid.UUID]]:
+    """Pairs (event_slug, integration_account_id) this job would compete on for inbound dispatch."""
+    event_slugs = {
+        tr.on
+        for tr in config.triggers
+        if isinstance(tr, JobAssignmentEventTrigger) and tr.on in EXCLUSIVE_INBOUND_EVENTS
+    }
+    if not event_slugs:
+        return set()
+    out: set[tuple[str, uuid.UUID]] = set()
+    if TELEGRAM_PRIVATE_MESSAGE.slug in event_slugs:
+        for a in config.actions:
+            if a.actionable_slug == TELEGRAM_SEND_MESSAGE.slug and a.integration_account_id is not None:
+                out.add((TELEGRAM_PRIVATE_MESSAGE.slug, a.integration_account_id))
+    if INSTAGRAM_DM_MESSAGE.slug in event_slugs:
+        for a in config.actions:
+            if a.actionable_slug == INSTAGRAM_SEND_MESSAGE.slug and a.integration_account_id is not None:
+                out.add((INSTAGRAM_DM_MESSAGE.slug, a.integration_account_id))
+    return out
+
+
+def assert_unique_inbound_event_listeners(
+    *,
+    workspace: Workspace,
+    config: JobAssignmentConfig,
+    exclude_job_assignment_id: uuid.UUID | None = None,
+) -> None:
+    """At most one **enabled** job per workspace may listen to a given inbound DM event per integration account."""
+    mine = _inbound_listener_pairs(config)
+    if not mine:
+        return
+    qs = JobAssignment.objects.filter(workspace=workspace, enabled=True)
+    if exclude_job_assignment_id is not None:
+        qs = qs.exclude(id=exclude_job_assignment_id)
+    for other in qs.iterator():
+        overlap = mine & _inbound_listener_pairs(other.get_config())
+        if overlap:
+            ev, acc = next(iter(overlap))
+            raise HttpError(
+                400,
+                "Inbound listener conflict: another enabled job in this workspace ("
+                f"{other.role_name!r}) already handles event {ev!r} for integration account {acc}. "
+                "Remove this trigger, adjust the other job, or disable one of the jobs.",
+            )
 
 
 def _account_row(acc: IntegrationAccount) -> dict[str, Any]:
@@ -79,9 +145,12 @@ def list_actionable_catalog_for_workspace(workspace: Workspace) -> list[dict[str
 
 
 def validate_job_assignment_config(
-    *, workspace: Workspace, config: JobAssignmentConfig
+    *,
+    workspace: Workspace,
+    config: JobAssignmentConfig,
+    exclude_job_assignment_id: uuid.UUID | None = None,
 ) -> JobAssignmentConfig:
-    """Cross-check a parsed ``JobAssignmentConfig`` against DB state; enrich accounts and triggers.
+    """Cross-check a parsed ``JobAssignmentConfig`` against DB state; enrich accounts.
 
     Mutates ``config`` in place and also returns it. Raises :class:`HttpError` on invalid references.
     """
@@ -164,20 +233,9 @@ def validate_job_assignment_config(
                 )
                 seen_accounts.add(acc.id)
 
-    # Default trigger for Telegram-only jobs.
-    if not config.triggers and any(
-        a.actionable_slug == TELEGRAM_SEND_MESSAGE.slug for a in config.actions
-    ):
-        config.triggers.append(
-            JobAssignmentEventTrigger(type="event", on=TELEGRAM_PRIVATE_MESSAGE.slug, filter={})
-        )
-
-    # Default trigger for Instagram-only jobs.
-    if not config.triggers and any(
-        a.actionable_slug == INSTAGRAM_SEND_MESSAGE.slug for a in config.actions
-    ):
-        config.triggers.append(
-            JobAssignmentEventTrigger(type="event", on=INSTAGRAM_DM_MESSAGE.slug, filter={})
-        )
-
+    assert_unique_inbound_event_listeners(
+        workspace=workspace,
+        config=config,
+        exclude_job_assignment_id=exclude_job_assignment_id,
+    )
     return config

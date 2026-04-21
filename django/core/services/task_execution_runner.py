@@ -128,7 +128,7 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         loop_messages = prior_exchange_messages(conversation)
         if not loop_messages:
             return _fail(task, "empty_conversation")
-        system_prompt = JobTaskProcessorAgent.build_system_prompt(job)
+        system_prompt = JobTaskProcessorAgent.build_system_prompt(job, conversation=conversation)
     else:
         append_user_message(
             conversation,
@@ -136,7 +136,7 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             content_structured={"trigger": "task_execution", "task_execution_id": str(task.id)},
         )
         system_prompt = (
-            JobTaskProcessorAgent.build_system_prompt(job)
+            JobTaskProcessorAgent.build_system_prompt(job, conversation=conversation)
             + "\n\nYou are executing a deferred task created earlier. Use the tools "
             "to complete the instructions below. When you are done, output a brief confirmation."
         )

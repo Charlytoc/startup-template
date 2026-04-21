@@ -138,6 +138,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agentic-chat/conversation/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Conversation
+         * @description Archive the active web-chat thread so the next message starts fresh (no agent run).
+         */
+        post: operations["core_routers_agentic_chat_clear_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agentic-chat/messages": {
         parameters: {
             query?: never;
@@ -594,6 +614,23 @@ export interface components {
             error: string;
             /** Error Code */
             error_code: string;
+        };
+        /** AgenticChatClearResponse */
+        AgenticChatClearResponse: {
+            /** Status */
+            status: string;
+            /** Had Active Conversation */
+            had_active_conversation: boolean;
+            /** Message */
+            message: string;
+        };
+        /** AgenticChatClearRequest */
+        AgenticChatClearRequest: {
+            /**
+             * Cyber Identity Id
+             * Format: uuid
+             */
+            cyber_identity_id: string;
         };
         /** AgenticChatMessageResponse */
         AgenticChatMessageResponse: {
@@ -1174,6 +1211,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgenticChatHistoryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatErrorResponse"];
+                };
+            };
+        };
+    };
+    core_routers_agentic_chat_clear_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgenticChatClearRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatClearResponse"];
                 };
             };
             /** @description Bad Request */

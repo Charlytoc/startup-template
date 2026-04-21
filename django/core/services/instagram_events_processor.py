@@ -7,10 +7,14 @@ from typing import Any
 
 from core.integrations.event_types import INSTAGRAM_DM_MESSAGE
 from core.models import IntegrationAccount
+from core.services.chat_clear_commands import CLEAR_CONTEXT_REPLY, is_clear_context_text
 from core.services.conversations import (
     append_user_message,
+    archive_conversation,
+    find_active_conversation,
     get_or_create_active_conversation,
 )
+from core.services.instagram_service import get_access_token, get_ig_user_id, instagram_send_message
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
 from core.services.task_execution_runner import (
     create_queued_event_task_execution,
@@ -37,6 +41,28 @@ def process_instagram_dm(
         len(text),
         str(message.get("mid") or "")[:80],
     )
+
+    if is_clear_context_text(text):
+        convo = find_active_conversation(account=account, external_thread_id=sender_igsid)
+        if convo is not None:
+            archive_conversation(convo)
+        token = get_access_token(account)
+        ig_user_id = get_ig_user_id(account)
+        if token and ig_user_id:
+            try:
+                instagram_send_message(token, ig_user_id, sender_igsid, CLEAR_CONTEXT_REPLY)
+            except Exception:
+                logger.exception(
+                    "process_instagram_dm clear_context send_failed account_id=%s sender=%s",
+                    account.id,
+                    sender_igsid,
+                )
+        else:
+            logger.warning(
+                "process_instagram_dm clear_context skip_send missing_token account_id=%s",
+                account.id,
+            )
+        return
 
     job = JobTaskProcessorAgent.first_runnable_job_for_instagram_dm(account)
     if job is None:

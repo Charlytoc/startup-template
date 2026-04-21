@@ -13,6 +13,7 @@ import {
   Center,
   Group,
   Loader,
+  Modal,
   Paper,
   PasswordInput,
   ScrollArea,
@@ -22,7 +23,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useLocalStorage } from "@mantine/hooks";
+import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import { io, Socket } from "socket.io-client";
 import { API_BASE_URL } from "@/lib/api-base";
 import type { components } from "@/lib/api/schema";
@@ -73,6 +74,12 @@ type AgenticChatHistoryResponse = {
   messages: AgenticChatHistoryMessage[];
 };
 
+type AgenticChatClearResponse = {
+  status: string;
+  had_active_conversation: boolean;
+  message: string;
+};
+
 async function fetchAgenticChatHistory(
   token: string,
   organizationId: string,
@@ -92,6 +99,28 @@ async function fetchAgenticChatHistory(
     throw new Error(err.error ?? response.statusText);
   }
   return data as AgenticChatHistoryResponse;
+}
+
+async function clearAgenticConversation(
+  token: string,
+  organizationId: string,
+  cyberIdentityId: string,
+): Promise<AgenticChatClearResponse> {
+  const response = await fetch(`${API_BASE_URL}/agentic-chat/conversation/clear`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      [ORGANIZATION_HEADER]: organizationId,
+    },
+    body: JSON.stringify({ cyber_identity_id: cyberIdentityId }),
+  });
+  const data = (await response.json()) as AgenticChatClearResponse | AgenticChatErrorResponse | ApiError;
+  if (!response.ok) {
+    const err = data as AgenticChatErrorResponse | ApiError;
+    throw new Error(err.error ?? response.statusText);
+  }
+  return data as AgenticChatClearResponse;
 }
 
 type RealtimeMessage = {
@@ -145,6 +174,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [waiting, setWaiting] = useState(false);
+  const [clearModalOpened, { open: openClearModal, close: closeClearModal }] = useDisclosure(false);
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -325,6 +355,26 @@ export default function ChatPage() {
       ),
     [input, token, user, activeOrganizationId, identityId, waiting, sendMessageMutation.isPending]
   );
+
+  const clearConversationMutation = useMutation({
+    mutationFn: async () => {
+      if (!token || activeOrganizationId == null || !identityId) {
+        throw new Error("Missing session");
+      }
+      return clearAgenticConversation(token, activeOrganizationId, identityId);
+    },
+    onSuccess: (data) => {
+      closeClearModal();
+      setMessages([]);
+      setStatus(data.message);
+      void queryClient.invalidateQueries({
+        queryKey: ["agentic-chat-history", token, activeOrganizationId, identityId],
+      });
+    },
+    onError: (err: Error) => {
+      setStatus(`Clear error: ${err.message}`);
+    },
+  });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -560,6 +610,15 @@ export default function ChatPage() {
             </Box>
           </Group>
           <Group gap="xs">
+            <Button
+              size="xs"
+              variant="light"
+              color="gray"
+              onClick={openClearModal}
+              disabled={!token || activeOrganizationId == null || clearConversationMutation.isPending}
+            >
+              Clear conversation
+            </Button>
             <Badge variant="light" color="violet" title={identityId}>
               Identity: {identityId.slice(0, 8)}…
             </Badge>
@@ -575,6 +634,32 @@ export default function ChatPage() {
           </Group>
         </Group>
       </Box>
+
+      <Modal
+        opened={clearModalOpened}
+        onClose={closeClearModal}
+        title="Clear conversation"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            This archives the current chat thread. The assistant will not see earlier messages on your
+            next send (same as /clear in Telegram).
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeClearModal}>
+              Cancel
+            </Button>
+            <Button
+              color="orange"
+              loading={clearConversationMutation.isPending}
+              onClick={() => clearConversationMutation.mutate()}
+            >
+              Clear
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <ScrollArea style={{ flex: 1 }} viewportRef={viewportRef} px="md" py="sm">
         <Stack gap="md" py="sm" maw={720} mx="auto">

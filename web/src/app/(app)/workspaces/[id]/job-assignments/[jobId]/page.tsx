@@ -38,10 +38,14 @@ import {
   actionsToKeys,
   buildActionsPayload,
   buildIdentitiesPayload,
+  buildTriggersPayload,
   fetchJobAssignment,
   fetchWorkspaceActionables,
+  INTEGRATION_INBOUND_EVENT_OPTIONS,
+  splitJobTriggers,
   updateJobAssignment,
   type JobAssignment,
+  type TriggerRecord,
 } from "@/lib/workspace-job-assignments";
 
 export default function JobAssignmentDetailPage() {
@@ -155,6 +159,8 @@ export default function JobAssignmentDetailPage() {
   const [instructions, setInstructions] = useState("");
   const [identityId, setIdentityId] = useState<string | null>(null);
   const [actionKeys, setActionKeys] = useState<string[]>([]);
+  const [integrationEventSlugs, setIntegrationEventSlugs] = useState<string[]>([]);
+  const [otherTriggers, setOtherTriggers] = useState<TriggerRecord[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,6 +171,11 @@ export default function JobAssignmentDetailPage() {
     const ids = (job.config.identities ?? []).map((i) => i.id);
     setIdentityId(ids[0] ?? null);
     setActionKeys(actionsToKeys(job.config.actions ?? []));
+    const { integrationEventSlugs: ev, otherTriggers: ot } = splitJobTriggers(
+      job.config.triggers as TriggerRecord[] | undefined,
+    );
+    setIntegrationEventSlugs(ev);
+    setOtherTriggers(ot);
     setFormError(null);
   }, [job]);
 
@@ -188,6 +199,7 @@ export default function JobAssignmentDetailPage() {
         config: {
           identities: identityPayload,
           actions,
+          triggers: buildTriggersPayload(integrationEventSlugs, otherTriggers),
         },
       });
     },
@@ -232,6 +244,20 @@ export default function JobAssignmentDetailPage() {
       })),
     [actionables],
   );
+
+  const integrationById = useMemo(
+    () => new Map((integrations ?? []).map((i) => [i.id, i] as const)),
+    [integrations],
+  );
+
+  const linkedAccountsInJob = useMemo(() => {
+    if (!job?.config.accounts?.length) return [];
+    return job.config.accounts.map((acc) => {
+      const row = integrationById.get(acc.id);
+      const label = row?.display_name ?? acc.id;
+      return { id: acc.id, provider: acc.provider, label };
+    });
+  }, [job, integrationById]);
 
   const displayUser = user ?? readStoredAuth().user;
   const workspaceMismatch =
@@ -384,11 +410,46 @@ export default function JobAssignmentDetailPage() {
               />
               <MultiSelect
                 label="Actions"
+                description="Channel actions (Telegram, Instagram) are listed once per connected account. To give this job another account, connect it under Integrations, then select that account’s action rows here and save — linked accounts are updated from your selection."
                 data={actionOptions}
                 value={actionKeys}
                 onChange={setActionKeys}
                 searchable
               />
+              <MultiSelect
+                label="Inbound triggers (integration)"
+                data={[...INTEGRATION_INBOUND_EVENT_OPTIONS]}
+                value={integrationEventSlugs}
+                onChange={setIntegrationEventSlugs}
+                searchable
+                description="Only one enabled job per workspace may use the same inbound trigger on the same integration account. Clear both here for a tools-only job (sends/scheduling without reacting to DMs). Cron triggers, if any, are preserved in the raw config below."
+              />
+              {otherTriggers.length > 0 ? (
+                <Text size="xs" c="dimmed">
+                  This job also has {otherTriggers.length} non-integration trigger(s) (e.g. cron); they are
+                  kept when you save and are not editable in this form yet.
+                </Text>
+              ) : null}
+              {linkedAccountsInJob.length > 0 ? (
+                <div>
+                  <Text size="sm" fw={600}>
+                    Integration accounts in scope
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    These are the workspace accounts this job may use (from your actions and triggers). They are not edited separately.
+                  </Text>
+                  <Stack gap={6}>
+                    {linkedAccountsInJob.map((a) => (
+                      <Text key={a.id} size="sm">
+                        {a.label}{" "}
+                        <Text span size="xs" c="dimmed">
+                          ({a.provider})
+                        </Text>
+                      </Text>
+                    ))}
+                  </Stack>
+                </div>
+              ) : null}
               <Group justify="flex-end">
                 <Button
                   loading={saveMutation.isPending}

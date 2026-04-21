@@ -21,8 +21,10 @@ from ninja.security import django_auth
 
 from core.models import CyberIdentity, Message, WorkspaceMember
 from core.services.auth import ApiKeyAuth, auth_service
+from core.services.chat_clear_commands import CLEAR_CONTEXT_REPLY
 from core.services.conversations import (
     append_user_message,
+    archive_conversation,
     find_active_web_conversation,
     get_or_create_active_web_conversation,
 )
@@ -64,6 +66,16 @@ class AgenticChatHistoryMessage(Schema):
 class AgenticChatHistoryResponse(Schema):
     conversation_id: str | None
     messages: list[AgenticChatHistoryMessage]
+
+
+class AgenticChatClearRequest(Schema):
+    cyber_identity_id: uuid.UUID
+
+
+class AgenticChatClearResponse(Schema):
+    status: str
+    had_active_conversation: bool
+    message: str
 
 
 def _message_display_text(message: Message) -> str:
@@ -146,6 +158,62 @@ def get_conversation_history(request, cyber_identity_id: uuid.UUID, limit: int =
     return 200, AgenticChatHistoryResponse(
         conversation_id=str(conversation.id),
         messages=messages,
+    )
+
+
+@router.post(
+    "/conversation/clear",
+    response={
+        200: AgenticChatClearResponse,
+        400: AgenticChatErrorResponse,
+        404: AgenticChatErrorResponse,
+    },
+    auth=[ApiKeyAuth(), django_auth],
+)
+def clear_conversation(request, data: AgenticChatClearRequest):
+    """Archive the active web-chat thread so the next message starts fresh (no agent run)."""
+    user = auth_service.get_user_from_request(request)
+
+    identity = CyberIdentity.objects.select_related("workspace").filter(
+        id=data.cyber_identity_id
+    ).first()
+    if identity is None:
+        return 404, AgenticChatErrorResponse(
+            error="Cyber identity not found.", error_code="CYBER_IDENTITY_NOT_FOUND"
+        )
+
+    member = WorkspaceMember.objects.filter(
+        user=user,
+        workspace=identity.workspace,
+        status=WorkspaceMember.Status.ACTIVE,
+    ).first()
+    if member is None:
+        raise HttpError(403, "You are not an active member of this workspace.")
+
+    if not identity.is_active:
+        return 400, AgenticChatErrorResponse(
+            error="This cyber identity is inactive.", error_code="CYBER_IDENTITY_INACTIVE"
+        )
+
+    if find_web_chat_job_for_identity(identity) is None:
+        return 400, AgenticChatErrorResponse(
+            error="Web chat is not enabled for this cyber identity.",
+            error_code="WEB_CHAT_NOT_ENABLED",
+        )
+
+    convo = find_active_web_conversation(
+        workspace=identity.workspace,
+        cyber_identity=identity,
+        web_user_id=user.id,
+    )
+    had = convo is not None
+    if convo is not None:
+        archive_conversation(convo)
+
+    return 200, AgenticChatClearResponse(
+        status="cleared",
+        had_active_conversation=had,
+        message=CLEAR_CONTEXT_REPLY,
     )
 
 

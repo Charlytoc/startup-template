@@ -238,13 +238,24 @@ class JobTaskProcessorAgent:
         return None
 
     @staticmethod
-    def build_system_prompt(job: JobAssignment) -> str:
-        cfg_model = job.get_config()
-        id_list: list[uuid.UUID] = [ident.id for ident in cfg_model.identities]
-        identities = CyberIdentity.objects.filter(id__in=id_list, workspace=job.workspace).order_by("display_name")
-        lines = [f"- {cy.display_name} ({cy.type})" for cy in identities]
-        identity_block = "\n".join(lines) if lines else "(none)"
+    def _user_facing_send_tool_name(conversation: Conversation | None) -> str | None:
+        """Name of the send-message tool for this thread (matches ``build_tools_for_conversation``)."""
+        if conversation is None:
+            return None
+        if conversation.origin == Conversation.Origin.WEB:
+            return "send_chat_message"
+        account = conversation.integration_account
+        if account is None:
+            return None
+        if account.provider == IntegrationAccount.Provider.TELEGRAM:
+            return "send_telegram_message"
+        if account.provider == IntegrationAccount.Provider.INSTAGRAM:
+            return "send_instagram_message"
+        return None
 
+    @staticmethod
+    def build_system_prompt(job: JobAssignment, *, conversation: Conversation | None = None) -> str:
+        cfg_model = job.get_config()
         parts = [
             f"You are running the workspace job **{job.role_name}**.",
         ]
@@ -252,13 +263,46 @@ class JobTaskProcessorAgent:
             parts.append(f"Summary:\n{job.description.strip()}")
         if (job.instructions or "").strip():
             parts.append(f"Instructions:\n{job.instructions.strip()}")
-        parts.append(f"Cyber identities in scope:\n{identity_block}")
-        parts.append(
-            "When you need to reply to the user, call the channel-specific send-message tool "
-            "(e.g. **send_telegram_message** for Telegram, **send_chat_message** for the web chat) "
-            "with the full text. Do not invent a different channel; the tool is already scoped to the "
-            "current conversation."
+
+        # Primary speaking role: first identity in job config (jobs are expected to use one).
+        primary_id = cfg_model.identities[0].id if cfg_model.identities else None
+        primary = (
+            CyberIdentity.objects.filter(id=primary_id, workspace=job.workspace).first()
+            if primary_id is not None
+            else None
         )
+        if primary is not None:
+            type_label = primary.get_type_display()
+            parts.append(
+                "**Your persona (stay in character for the user):**\n"
+                f"You are **{primary.display_name}** — a **{type_label}** identity in this workspace. "
+                "Use this name and voice consistently when you address or represent yourself to the user; "
+                "do not fall back to a vague unnamed assistant unless this persona would naturally do so."
+            )
+            if len(cfg_model.identities) > 1:
+                parts.append(
+                    "This job lists more than one identity in configuration; your **primary** user-facing "
+                    f"role for this run is still **{primary.display_name}**."
+                )
+        else:
+            parts.append(
+                "**Persona:** This job has no cyber identity in scope; act as a neutral workspace agent."
+            )
+
+        tool_name = JobTaskProcessorAgent._user_facing_send_tool_name(conversation)
+        if tool_name:
+            parts.append(
+                f"In **this** conversation, anything the end user must read or hear must be sent through "
+                f"the **`{tool_name}`** tool (already scoped to this thread). Plain assistant text without "
+                "that tool is not delivered to the user on this channel unless the instructions above say "
+                "otherwise."
+            )
+        else:
+            parts.append(
+                "Use the send-message tool attached to this run for user-visible replies; plain assistant "
+                "text alone may not reach the user depending on the channel."
+            )
+
         return "\n\n".join(parts)
 
 

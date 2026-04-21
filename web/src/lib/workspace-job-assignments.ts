@@ -7,13 +7,13 @@ export type ActionableCatalogRow = {
   name: string;
   description: string;
   provider: string;
-  integration_account_id: string;
+  integration_account_id: string | null;
   integration: {
     integration_account_id: string;
     provider: string;
     display_name: string;
     status: string;
-  };
+  } | null;
 };
 
 export type JobAssignmentConfigAccount = {
@@ -86,6 +86,50 @@ export function buildIdentitiesPayload(
 
 export function buildActionsPayload(selectedActionKeys: string[]) {
   return selectedActionKeys.map((key) => keyToAction(key));
+}
+
+/** Inbound events that map to at most one enabled listener per integration account. */
+export const INTEGRATION_INBOUND_EVENT_SLUGS = [
+  "telegram.private_message",
+  "instagram.dm_message",
+] as const;
+
+const INBOUND_SLUG_SET = new Set<string>(INTEGRATION_INBOUND_EVENT_SLUGS);
+
+export const INTEGRATION_INBOUND_EVENT_OPTIONS = [
+  { value: "telegram.private_message", label: "Telegram — inbound private messages" },
+  { value: "instagram.dm_message", label: "Instagram — inbound direct messages" },
+] as const;
+
+export type TriggerRecord = Record<string, unknown>;
+
+/** Split known inbound integration event triggers from cron / other triggers (preserved on save). */
+export function splitJobTriggers(triggers: TriggerRecord[] | undefined): {
+  integrationEventSlugs: string[];
+  otherTriggers: TriggerRecord[];
+} {
+  const list = triggers ?? [];
+  const seenInbound = new Set<string>();
+  const otherTriggers: TriggerRecord[] = [];
+  for (const t of list) {
+    const ty = typeof t.type === "string" ? t.type : "";
+    const on = typeof (t as { on?: string }).on === "string" ? (t as { on: string }).on : "";
+    if (ty === "event" && INBOUND_SLUG_SET.has(on)) {
+      seenInbound.add(on);
+    } else {
+      otherTriggers.push(t);
+    }
+  }
+  const integrationEventSlugs = INTEGRATION_INBOUND_EVENT_SLUGS.filter((s) => seenInbound.has(s));
+  return { integrationEventSlugs, otherTriggers };
+}
+
+export function buildTriggersPayload(
+  integrationEventSlugs: string[],
+  otherTriggers: TriggerRecord[],
+): TriggerRecord[] {
+  const events = integrationEventSlugs.map((on) => ({ type: "event", on, filter: {} }));
+  return [...events, ...otherTriggers];
 }
 
 /** Build MultiSelect keys from persisted ``config.actions``. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -40,10 +40,13 @@ import {
   actionKey,
   buildActionsPayload,
   buildIdentitiesPayload,
+  buildTriggersPayload,
   createJobAssignment,
   deleteJobAssignment,
   fetchJobAssignments,
   fetchWorkspaceActionables,
+  INTEGRATION_INBOUND_EVENT_OPTIONS,
+  splitJobTriggers,
   updateJobAssignment,
   type JobAssignment,
 } from "@/lib/workspace-job-assignments";
@@ -146,7 +149,30 @@ export default function WorkspaceJobAssignmentsPage() {
   const [instructions, setInstructions] = useState("");
   const [selectedIdentityId, setSelectedIdentityId] = useState<string | null>(null);
   const [selectedActionKeys, setSelectedActionKeys] = useState<string[]>([]);
+  const [integrationEventSlugs, setIntegrationEventSlugs] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const closeCreateModal = useCallback(() => {
+    setIntegrationEventSlugs([]);
+    closeCreate();
+  }, [closeCreate]);
+
+  useEffect(() => {
+    if (!createOpened) return;
+    setIntegrationEventSlugs((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      if (selectedActionKeys.some((k) => k.startsWith("telegram.send_message::")) && !next.has("telegram.private_message")) {
+        next.add("telegram.private_message");
+        changed = true;
+      }
+      if (selectedActionKeys.some((k) => k.startsWith("instagram.send_message::")) && !next.has("instagram.dm_message")) {
+        next.add("instagram.dm_message");
+        changed = true;
+      }
+      return changed ? [...next] : prev;
+    });
+  }, [createOpened, selectedActionKeys]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["job-assignments", token, orgId, workspaceId] });
@@ -167,6 +193,7 @@ export default function WorkspaceJobAssignmentsPage() {
         config: {
           identities: identityPayload,
           actions,
+          triggers: buildTriggersPayload(integrationEventSlugs, []),
         },
       });
     },
@@ -177,7 +204,7 @@ export default function WorkspaceJobAssignmentsPage() {
       setInstructions("");
       setSelectedIdentityId(null);
       setSelectedActionKeys([]);
-      closeCreate();
+      closeCreateModal();
       invalidate();
     },
     onError: (err: Error) => setFormError(err.message),
@@ -485,7 +512,7 @@ export default function WorkspaceJobAssignmentsPage() {
         </Paper>
       </Stack>
 
-      <Modal opened={createOpened} onClose={closeCreate} title="New job assignment" centered size="lg">
+      <Modal opened={createOpened} onClose={closeCreateModal} title="New job assignment" centered size="lg">
         <Stack gap="sm">
           {formError ? (
             <Alert color="red" title="Could not create">
@@ -538,10 +565,19 @@ export default function WorkspaceJobAssignmentsPage() {
             value={selectedActionKeys}
             onChange={setSelectedActionKeys}
             searchable
-            description="Each option is tied to a specific connected account (e.g. one Telegram bot)."
+            description="Each option is tied to a specific connected account (e.g. one Telegram bot). You can add send-message actions without listening to inbound traffic — clear inbound triggers below if you only need tools."
+          />
+          <MultiSelect
+            label="Inbound triggers (integration)"
+            placeholder="When should this job run automatically?"
+            data={[...INTEGRATION_INBOUND_EVENT_OPTIONS]}
+            value={integrationEventSlugs}
+            onChange={setIntegrationEventSlugs}
+            searchable
+            description="Only one enabled job per workspace may listen to the same inbound event on the same account. Leave empty for a tools-only job (scheduled tasks, sends from another job, etc.)."
           />
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={closeCreate}>
+            <Button variant="default" onClick={closeCreateModal}>
               Cancel
             </Button>
             <Button

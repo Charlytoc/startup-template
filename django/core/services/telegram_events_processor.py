@@ -6,6 +6,7 @@ from typing import Any
 
 from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
 from core.models import IntegrationAccount, JobAssignment
+from core.services.chat_clear_commands import CLEAR_CONTEXT_REPLY, is_clear_context_text
 from core.services.conversations import (
     append_user_message,
     archive_conversation,
@@ -23,7 +24,6 @@ NO_TASKS_REPLY = (
     "This bot has any defined tasks configured, please define something to "
     "start using your bot as an expert."
 )
-CLEAR_CONTEXT_REPLY = "Done. I cleared our previous context. Send your next message."
 
 
 def _workspace_has_configured_jobs(account: IntegrationAccount) -> bool:
@@ -36,11 +36,8 @@ def _workspace_has_configured_jobs(account: IntegrationAccount) -> bool:
 
 
 def _is_clear_context_command(message: dict[str, Any]) -> bool:
-    text = str(message.get("text") or "").strip().lower()
-    if not text:
-        return False
-    command = text.split(maxsplit=1)[0]
-    return command in {"/clear", "/clearcontext", "/reset"} or command.startswith("/clear@")
+    text = str(message.get("text") or message.get("caption") or "").strip()
+    return is_clear_context_text(text)
 
 
 def _external_user_id(message: dict[str, Any]) -> str | None:
