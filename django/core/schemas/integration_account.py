@@ -28,12 +28,17 @@ class IntegrationAccountSender(BaseModel):
     ``external_thread_id`` is the provider identifier used for routing (Telegram ``chat_id``,
     Instagram IGSID, ...). ``extractions`` is a free-form JSON bag that future agent tools
     (``*.extract_user_context``) can fill with arbitrary data about the counterpart.
+
+    ``handle`` is a human-oriented id string for display or future tools (Telegram: ``@username``
+    when present, else numeric ``from.id``; Instagram: ``@username`` when the webhook includes
+    it, otherwise often unset).
     """
 
     model_config = ConfigDict(extra="allow")
 
     external_thread_id: str
     approval_status: SenderApprovalStatus
+    handle: str | None = None
     extractions: dict[str, Any] = Field(default_factory=dict)
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None

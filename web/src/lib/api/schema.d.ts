@@ -695,6 +695,8 @@ export interface components {
             config: {
                 [key: string]: unknown;
             };
+            /** Senders */
+            senders: components["schemas"]["IntegrationAccountSenderOut"][];
             /** Last Synced At */
             last_synced_at: string | null;
             /** Last Error */
@@ -709,6 +711,26 @@ export interface components {
              * Format: date-time
              */
             modified: string;
+        };
+        /** IntegrationAccountSenderOut */
+        IntegrationAccountSenderOut: {
+            /** External Thread Id */
+            external_thread_id: string;
+            /** Approval Status */
+            approval_status: string;
+            /** Handle */
+            handle?: string | null;
+            /**
+             * Extractions
+             * @default {}
+             */
+            extractions: {
+                [key: string]: unknown;
+            };
+            /** First Seen At */
+            first_seen_at?: string | null;
+            /** Last Seen At */
+            last_seen_at?: string | null;
         };
         /** TaskExecutionListItem */
         TaskExecutionListItem: {
@@ -863,11 +885,11 @@ export interface components {
             /** Provider */
             provider: string;
             /** Integration Account Id */
-            integration_account_id: string;
+            integration_account_id?: string | null;
             /** Integration */
-            integration: {
+            integration?: {
                 [key: string]: unknown;
-            };
+            } | null;
         };
         /** JobAssignmentResponse */
         JobAssignmentResponse: {

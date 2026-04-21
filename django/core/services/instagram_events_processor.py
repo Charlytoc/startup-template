@@ -26,6 +26,18 @@ from core.services.task_execution_runner import (
 logger = logging.getLogger(__name__)
 
 
+def _instagram_sender_handle_from_messaging(messaging: dict[str, Any]) -> str | None:
+    """Return ``@username`` when Meta includes it on ``sender`` (often absent; then ``None``)."""
+    sender = messaging.get("sender")
+    if not isinstance(sender, dict):
+        return None
+    username = sender.get("username")
+    if not isinstance(username, str):
+        return None
+    u = username.strip().lstrip("@")
+    return f"@{u}" if u else None
+
+
 def process_instagram_dm(
     *,
     account: IntegrationAccount,
@@ -48,6 +60,7 @@ def process_instagram_dm(
         account,
         sender_igsid,
         default_status=SenderApprovalStatus.NOT_REQUIRED,
+        handle=_instagram_sender_handle_from_messaging(messaging),
     )
 
     if is_clear_context_text(text):

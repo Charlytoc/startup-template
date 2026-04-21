@@ -354,6 +354,7 @@ export default function IntegrationAccountDetailPage() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Thread id</Table.Th>
+                    <Table.Th>Handle</Table.Th>
                     <Table.Th>Status</Table.Th>
                     <Table.Th>First seen</Table.Th>
                     <Table.Th>Last seen</Table.Th>
@@ -369,6 +370,11 @@ export default function IntegrationAccountDetailPage() {
                         <Table.Td>
                           <Text size="xs" ff="monospace">
                             {s.external_thread_id}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs" ff="monospace">
+                            {s.handle?.trim() ? s.handle : "—"}
                           </Text>
                         </Table.Td>
                         <Table.Td>

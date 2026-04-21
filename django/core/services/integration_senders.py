@@ -79,10 +79,14 @@ def upsert_sender(
     external_thread_id: str,
     *,
     default_status: SenderApprovalStatus,
+    handle: str | None = None,
 ) -> IntegrationAccountSender:
     """Insert a new sender with ``default_status`` or refresh ``last_seen_at`` on an existing one.
 
-    Never downgrades the status of an existing sender.
+    Never downgrades the status of an existing sender. When ``handle`` is not ``None``, it is
+    the latest value from this event: we persist it only if it differs from the stored handle.
+    When ``None``, the caller did not resolve a handle (e.g. sparse Instagram payload) and the
+    stored ``handle`` is left unchanged.
     """
     external_thread_id = (external_thread_id or "").strip()
     if not external_thread_id:
@@ -97,6 +101,7 @@ def upsert_sender(
             row = IntegrationAccountSender(
                 external_thread_id=external_thread_id,
                 approval_status=default_status,
+                handle=handle,
                 extractions={},
                 first_seen_at=datetime.fromisoformat(now_iso),
                 last_seen_at=datetime.fromisoformat(now_iso),
@@ -107,6 +112,8 @@ def upsert_sender(
             row.setdefault("extractions", {})
             row.setdefault("first_seen_at", now_iso)
             row["last_seen_at"] = now_iso
+            if handle is not None and row.get("handle") != handle:
+                row["handle"] = handle
             senders[idx] = row
 
         _write(locked, senders)

@@ -140,6 +140,27 @@ def build_webhook_url(webhook_path_token: str) -> str:
     return f"{base}/api/integrations/telegram/webhook/{webhook_path_token}/"
 
 
+def telegram_sender_handle_from_message(message: dict[str, Any]) -> str | None:
+    """Display handle for the human: ``@username`` when Telegram sends it, else numeric ``from.id``."""
+    from_user = message.get("from") or {}
+    chat = message.get("chat") or {}
+    for bucket in (from_user, chat):
+        if not isinstance(bucket, dict):
+            continue
+        raw = bucket.get("username")
+        if isinstance(raw, str):
+            u = raw.strip().lstrip("@")
+            if u:
+                return f"@{u}"
+    uid = from_user.get("id")
+    if uid is None:
+        return None
+    try:
+        return str(int(uid))
+    except (TypeError, ValueError):
+        return str(uid).strip() or None
+
+
 def ensure_telegram_config_defaults(config: dict[str, Any]) -> dict[str, Any]:
     out = dict(config) if config else {}
     if CONFIG_SENDERS not in out:
@@ -187,6 +208,7 @@ def handle_inbound_update(account: IntegrationAccount, update: dict[str, Any]) -
         account,
         str(telegram_user_id),
         default_status=SenderApprovalStatus.PENDING,
+        handle=telegram_sender_handle_from_message(message),
     )
 
     pending_key = cache_key_pending(account.id, telegram_user_id)

@@ -126,6 +126,7 @@ def list_workspace_integrations(request, workspace_id: int):
 class IntegrationAccountSenderOut(Schema):
     external_thread_id: str
     approval_status: str
+    handle: str | None = None
     extractions: dict = {}
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None
@@ -153,6 +154,7 @@ def _serialize_senders(row: IntegrationAccount) -> list[IntegrationAccountSender
         IntegrationAccountSenderOut(
             external_thread_id=s.external_thread_id,
             approval_status=s.approval_status.value,
+            handle=s.handle,
             extractions=s.extractions or {},
             first_seen_at=s.first_seen_at,
             last_seen_at=s.last_seen_at,

@@ -14,7 +14,6 @@ import {
   Group,
   Loader,
   Modal,
-  MultiSelect,
   Paper,
   Select,
   Stack,
@@ -36,8 +35,8 @@ import {
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 import { fetchCyberIdentities } from "@/lib/workspace-cyber-identities";
+import { IntegrationActionsTriggersEditor } from "@/components/job-assignments/integration-actions-triggers-editor";
 import {
-  actionKey,
   buildActionsPayload,
   buildIdentitiesPayload,
   buildTriggersPayload,
@@ -45,8 +44,6 @@ import {
   deleteJobAssignment,
   fetchJobAssignments,
   fetchWorkspaceActionables,
-  INTEGRATION_INBOUND_EVENT_OPTIONS,
-  splitJobTriggers,
   updateJobAssignment,
   type JobAssignment,
 } from "@/lib/workspace-job-assignments";
@@ -157,23 +154,6 @@ export default function WorkspaceJobAssignmentsPage() {
     closeCreate();
   }, [closeCreate]);
 
-  useEffect(() => {
-    if (!createOpened) return;
-    setIntegrationEventSlugs((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      if (selectedActionKeys.some((k) => k.startsWith("telegram.send_message::")) && !next.has("telegram.private_message")) {
-        next.add("telegram.private_message");
-        changed = true;
-      }
-      if (selectedActionKeys.some((k) => k.startsWith("instagram.send_message::")) && !next.has("instagram.dm_message")) {
-        next.add("instagram.dm_message");
-        changed = true;
-      }
-      return changed ? [...next] : prev;
-    });
-  }, [createOpened, selectedActionKeys]);
-
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["job-assignments", token, orgId, workspaceId] });
   };
@@ -235,15 +215,6 @@ export default function WorkspaceJobAssignmentsPage() {
         label: `${i.display_name} (${i.type})`,
       })),
     [identities],
-  );
-
-  const actionOptions = useMemo(
-    () =>
-      (actionables ?? []).map((a) => ({
-        value: actionKey(a),
-        label: `${a.name} — ${a.integration?.display_name ?? "System"}`,
-      })),
-    [actionables],
   );
 
   useEffect(() => {
@@ -558,23 +529,13 @@ export default function WorkspaceJobAssignmentsPage() {
             allowDeselect={false}
             description="Required — the agent runs in the context of this workspace persona."
           />
-          <MultiSelect
-            label="Actions"
-            placeholder="Pick capabilities (from connected accounts)"
-            data={actionOptions}
-            value={selectedActionKeys}
-            onChange={setSelectedActionKeys}
-            searchable
-            description="Each option is tied to a specific connected account (e.g. one Telegram bot). You can add send-message actions without listening to inbound traffic — clear inbound triggers below if you only need tools."
-          />
-          <MultiSelect
-            label="Inbound triggers (integration)"
-            placeholder="When should this job run automatically?"
-            data={[...INTEGRATION_INBOUND_EVENT_OPTIONS]}
-            value={integrationEventSlugs}
-            onChange={setIntegrationEventSlugs}
-            searchable
-            description="Only one enabled job per workspace may listen to the same inbound event on the same account. Leave empty for a tools-only job (scheduled tasks, sends from another job, etc.)."
+          <IntegrationActionsTriggersEditor
+            actionables={actionables ?? []}
+            integrations={integrations ?? []}
+            actionKeys={selectedActionKeys}
+            integrationEventSlugs={integrationEventSlugs}
+            onActionKeysChange={setSelectedActionKeys}
+            onIntegrationEventSlugsChange={setIntegrationEventSlugs}
           />
           <Group justify="flex-end" gap="xs">
             <Button variant="default" onClick={closeCreateModal}>

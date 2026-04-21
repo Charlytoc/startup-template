@@ -39,6 +39,8 @@ export type IntegrationAccountSenderApprovalStatus =
 export type IntegrationAccountSender = {
   external_thread_id: string;
   approval_status: IntegrationAccountSenderApprovalStatus;
+  /** Display-oriented id (Telegram @username or numeric id, Instagram @username when known). */
+  handle?: string | null;
   extractions: Record<string, unknown>;
   first_seen_at: string | null;
   last_seen_at: string | null;

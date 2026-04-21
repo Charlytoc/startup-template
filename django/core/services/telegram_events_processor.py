@@ -20,7 +20,11 @@ from core.services.task_execution_runner import (
     create_queued_event_task_execution,
     enqueue_task_execution,
 )
-from core.services.telegram_bot import get_bot_token, telegram_send_message
+from core.services.telegram_bot import (
+    get_bot_token,
+    telegram_send_message,
+    telegram_sender_handle_from_message,
+)
 
 NO_TASKS_REPLY = (
     "This bot has any defined tasks configured, please define something to "
@@ -62,6 +66,7 @@ def process_approved_message(account: IntegrationAccount, message: dict[str, Any
         account,
         external_thread_id,
         default_status=SenderApprovalStatus.APPROVED,
+        handle=telegram_sender_handle_from_message(message),
     )
 
     if _is_clear_context_command(message):

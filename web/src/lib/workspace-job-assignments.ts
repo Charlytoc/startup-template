@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "@/lib/api-base";
 import { ORGANIZATION_HEADER } from "@/lib/auth-storage";
 import type { CyberIdentity } from "@/lib/workspace-cyber-identities";
+import type { WorkspaceIntegrationItem } from "@/lib/workspace-integrations";
 
 export type ActionableCatalogRow = {
   slug: string;
@@ -100,6 +101,150 @@ export const INTEGRATION_INBOUND_EVENT_OPTIONS = [
   { value: "telegram.private_message", label: "Telegram — inbound private messages" },
   { value: "instagram.dm_message", label: "Instagram — inbound direct messages" },
 ] as const;
+
+/** Inbound event options shown per provider when attaching/editing an integration. */
+export const PROVIDER_INBOUND_EVENTS: Record<
+  "telegram" | "instagram",
+  readonly { value: string; label: string }[]
+> = {
+  telegram: INTEGRATION_INBOUND_EVENT_OPTIONS.filter((o) => o.value.startsWith("telegram.")),
+  instagram: INTEGRATION_INBOUND_EVENT_OPTIONS.filter((o) => o.value.startsWith("instagram.")),
+};
+
+export type AttachedIntegrationGroup = {
+  integration_account_id: string;
+  provider: string;
+  display_name: string;
+  actionKeys: string[];
+  /** Subset of ``integrationEventSlugs`` that apply to this provider (for display). */
+  eventSlugs: string[];
+};
+
+export function groupSelectionByIntegration(
+  actionKeys: string[],
+  integrationEventSlugs: string[],
+  integrations: WorkspaceIntegrationItem[],
+): { attached: AttachedIntegrationGroup[]; systemActionKeys: string[] } {
+  const systemActionKeys: string[] = [];
+  const byAccount = new Map<string, string[]>();
+
+  for (const key of actionKeys) {
+    const { integration_account_id } = keyToAction(key);
+    if (!integration_account_id) {
+      systemActionKeys.push(key);
+      continue;
+    }
+    if (!byAccount.has(integration_account_id)) {
+      byAccount.set(integration_account_id, []);
+    }
+    byAccount.get(integration_account_id)!.push(key);
+  }
+
+  const integrationById = new Map(integrations.map((i) => [i.id, i] as const));
+
+  const attached: AttachedIntegrationGroup[] = [];
+  for (const [accountId, keys] of byAccount) {
+    const row = integrationById.get(accountId);
+    const provider = (row?.provider ?? "unknown").toLowerCase();
+    const inboundOpts =
+      provider === "telegram" || provider === "instagram"
+        ? PROVIDER_INBOUND_EVENTS[provider]
+        : [];
+    const allowed = new Set(inboundOpts.map((o) => o.value));
+    const eventSlugs = integrationEventSlugs.filter((s) => allowed.has(s));
+    attached.push({
+      integration_account_id: accountId,
+      provider,
+      display_name: row?.display_name ?? accountId,
+      actionKeys: keys,
+      eventSlugs,
+    });
+  }
+  attached.sort((a, b) => a.display_name.localeCompare(b.display_name));
+  return { attached, systemActionKeys };
+}
+
+/** Actionable rows not bound to an integration (system tools). */
+export function systemActionableRows(actionables: ActionableCatalogRow[]): ActionableCatalogRow[] {
+  return actionables.filter((a) => a.integration_account_id == null);
+}
+
+export function systemActionOptions(actionables: ActionableCatalogRow[]) {
+  return systemActionableRows(actionables).map((a) => ({
+    value: actionKey(a),
+    label: a.name,
+  }));
+}
+
+export function integrationActionOptionsForAccount(
+  actionables: ActionableCatalogRow[],
+  integrationAccountId: string,
+) {
+  return actionables
+    .filter((a) => a.integration_account_id === integrationAccountId)
+    .map((a) => ({
+      value: actionKey(a),
+      label: a.name,
+    }));
+}
+
+/** Remove one integration’s actions and prune inbound slugs if no send actions remain for that provider. */
+export function removeIntegrationGroup(
+  actionKeys: string[],
+  integrationEventSlugs: string[],
+  integrationAccountId: string,
+): { actionKeys: string[]; eventSlugs: string[] } {
+  const newKeys = actionKeys.filter(
+    (k) => keyToAction(k).integration_account_id !== integrationAccountId,
+  );
+  const hasTelegramSend = newKeys.some((k) => {
+    const a = keyToAction(k);
+    return a.actionable_slug === "telegram.send_message" && a.integration_account_id != null;
+  });
+  const hasInstagramSend = newKeys.some((k) => {
+    const a = keyToAction(k);
+    return a.actionable_slug === "instagram.send_message" && a.integration_account_id != null;
+  });
+  let eventSlugs = [...integrationEventSlugs];
+  if (!hasTelegramSend) {
+    eventSlugs = eventSlugs.filter((s) => s !== "telegram.private_message");
+  }
+  if (!hasInstagramSend) {
+    eventSlugs = eventSlugs.filter((s) => s !== "instagram.dm_message");
+  }
+  return { actionKeys: newKeys, eventSlugs };
+}
+
+/** Replace or add actions for ``integrationAccountId`` and set inbound slugs for that account's provider. */
+export function mergeIntegrationGroup(
+  actionKeys: string[],
+  integrationEventSlugs: string[],
+  integrationAccountId: string,
+  newActionKeysForAccount: string[],
+  newEventSlugsForModal: string[],
+  integrations: WorkspaceIntegrationItem[],
+): { actionKeys: string[]; eventSlugs: string[] } {
+  const without = actionKeys.filter(
+    (k) => keyToAction(k).integration_account_id !== integrationAccountId,
+  );
+  const mergedKeys = [...without, ...newActionKeysForAccount];
+  const row = integrations.find((i) => i.id === integrationAccountId);
+  const provider = (row?.provider ?? "").toLowerCase();
+  let nextSlugs: string[];
+  if (provider === "telegram" || provider === "instagram") {
+    const providerSlugSet = new Set(PROVIDER_INBOUND_EVENTS[provider].map((o) => o.value));
+    const allowedModal = newEventSlugsForModal.filter((s) => providerSlugSet.has(s));
+    const stripped = integrationEventSlugs.filter((s) => !providerSlugSet.has(s));
+    nextSlugs = [...stripped, ...allowedModal];
+  } else {
+    const slugSet = new Set(integrationEventSlugs);
+    for (const s of newEventSlugsForModal) {
+      slugSet.add(s);
+    }
+    nextSlugs = [...slugSet];
+  }
+  return { actionKeys: mergedKeys, eventSlugs: [...new Set(nextSlugs)] };
+}
 
 export type TriggerRecord = Record<string, unknown>;
 
