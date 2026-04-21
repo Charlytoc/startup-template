@@ -876,6 +876,14 @@ def verify_webhook_signature(request: HttpRequest) -> bool:
     return ok
 
 
+def _instagram_webhook_messaging_needs_dm_worker(messaging: dict[str, Any]) -> bool:
+    """True only for payloads that can represent user text (skip read/delivery-only webhooks)."""
+    if messaging.get("message"):
+        return True
+    edit = messaging.get("message_edit")
+    return bool(isinstance(edit, dict) and str(edit.get("mid") or "").strip())
+
+
 def _normalize_instagram_messaging_for_dm(messaging: dict[str, Any]) -> dict[str, Any] | None:
     """Return ``messaging`` with a ``message`` object, synthesizing one from ``message_edit`` when needed.
 
@@ -983,11 +991,16 @@ def _resolve_instagram_dm_sender_igsid(
         return bool(x) and x != biz
 
     sender = str((messaging.get("sender") or {}).get("id") or "").strip()
+    # Outbound / echo: Meta sets sender to the professional inbox id and recipient to the human.
+    # Never treat recipient as the "inbound user" in that case (it caused reply→webhook→reply loops).
+    if sender == biz:
+        return ""
+
     if _peer(sender):
         return sender
 
     recipient = str((messaging.get("recipient") or {}).get("id") or "").strip()
-    if _peer(recipient):
+    if not sender and _peer(recipient):
         return recipient
 
     mid = str(message.get("mid") or "").strip()
@@ -1052,6 +1065,9 @@ def process_instagram_webhook_messaging(
         return
     if message.get("is_echo"):
         logger.info("instagram_webhook_work skip is_echo mid=%s", message.get("mid"))
+        return
+    if message.get("is_self"):
+        logger.info("instagram_webhook_work skip is_self mid=%s", message.get("mid"))
         return
 
     sender_igsid = _resolve_instagram_dm_sender_igsid(
@@ -1139,6 +1155,12 @@ def handle_webhook_payload(payload: dict[str, Any]) -> None:
 
         for messaging in messaging_list:
             if not isinstance(messaging, dict):
+                continue
+            if not _instagram_webhook_messaging_needs_dm_worker(messaging):
+                logger.info(
+                    "instagram_webhook_payload skip_enqueue not_dm_signal keys=%s",
+                    list(messaging.keys()),
+                )
                 continue
             from core.tasks.instagram_dm import process_instagram_webhook_messaging_task
 
