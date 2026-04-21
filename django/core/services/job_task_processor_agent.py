@@ -8,21 +8,17 @@ from core.agent.base import AgentToolConfig
 from core.agent.tools.create_recurring_job import make_create_recurring_job_tool
 from core.agent.tools.schedule_one_off_task import make_schedule_one_off_task_tool
 from core.agent.tools.send_chat_message import make_send_chat_message_tool
-from core.agent.tools.send_instagram_message import make_send_instagram_message_tool
-from core.agent.tools.send_telegram_message import make_send_telegram_message_tool
+from core.agent.tools.send_message import make_send_message_tool
 from core.integrations.actionables import (
-    INSTAGRAM_SEND_MESSAGE,
     SYSTEM_SEND_CHAT_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
-    TELEGRAM_SEND_MESSAGE,
 )
 from core.integrations.event_types import INSTAGRAM_DM_MESSAGE, TELEGRAM_PRIVATE_MESSAGE
 from core.models import Conversation, CyberIdentity, IntegrationAccount, JobAssignment
 from core.schemas.channel import Channel, InstagramDmChannel, TelegramPrivateChannel, WebChatChannel
 from core.schemas.job_assignment import JobAssignmentEventTrigger
-from core.services.instagram_service import get_access_token, get_ig_user_id
-from core.services.telegram_bot import get_bot_token
+from core.services.send_targets import collect_resolved_send_targets
 
 
 class JobTaskProcessorAgent:
@@ -36,36 +32,15 @@ class JobTaskProcessorAgent:
     ) -> list[AgentToolConfig]:
         """Build tool list for an agent run bound to a ``Conversation``.
 
-        The conversation already carries the integration account (channel) and the external
-        thread id, so tools that reply back to the user (e.g. ``send_telegram_message``) are
-        instantiated from it directly.
+        The conversation carries the integration account and external thread id when
+        ``origin == integration``; :func:`collect_resolved_send_targets` turns that into indexed
+        rows for the unified ``send_message`` tool.
         """
         channel = _channel_for_conversation(conversation)
-        telegram_account: IntegrationAccount | None = None
-        telegram_bot_token: str | None = None
-        instagram_account: IntegrationAccount | None = None
-        instagram_page_token: str | None = None
-        instagram_ig_user_id: str | None = None
-
-        if conversation.integration_account_id:
-            provider = conversation.integration_account.provider
-            if provider == IntegrationAccount.Provider.TELEGRAM:
-                telegram_account = conversation.integration_account
-                telegram_bot_token = get_bot_token(telegram_account) or None
-            elif provider == IntegrationAccount.Provider.INSTAGRAM:
-                instagram_account = conversation.integration_account
-                instagram_page_token = get_access_token(instagram_account) or None
-                instagram_ig_user_id = get_ig_user_id(instagram_account) or None
-
         return JobTaskProcessorAgent._build_tools_from_actions(
             job=job,
             conversation=conversation,
             channel=channel,
-            telegram_account=telegram_account,
-            telegram_bot_token=telegram_bot_token,
-            instagram_account=instagram_account,
-            instagram_page_token=instagram_page_token,
-            instagram_ig_user_id=instagram_ig_user_id,
         )
 
     @staticmethod
@@ -74,11 +49,6 @@ class JobTaskProcessorAgent:
         job: JobAssignment,
         conversation: Conversation | None,
         channel: Channel | None,
-        telegram_account: IntegrationAccount | None,
-        telegram_bot_token: str | None,
-        instagram_account: IntegrationAccount | None = None,
-        instagram_page_token: str | None = None,
-        instagram_ig_user_id: str | None = None,
     ) -> list[AgentToolConfig]:
         cfg_model = job.get_config()
         tools: list[AgentToolConfig] = []
@@ -90,33 +60,18 @@ class JobTaskProcessorAgent:
             seen_names.add(cfg.tool.name)
             tools.append(cfg)
 
+        dm_targets = collect_resolved_send_targets(job=job, conversation=conversation)
+        if dm_targets:
+            _add(
+                make_send_message_tool(
+                    targets=dm_targets,
+                    conversation_for_append=conversation,
+                )
+            )
+
         for act in cfg_model.actions:
             slug = act.actionable_slug
-            if slug == TELEGRAM_SEND_MESSAGE.slug:
-                if (
-                    conversation is not None
-                    and telegram_account is not None
-                    and telegram_bot_token
-                    and act.integration_account_id == telegram_account.id
-                ):
-                    _add(make_send_telegram_message_tool(
-                        bot_token=telegram_bot_token,
-                        conversation=conversation,
-                    ))
-            elif slug == INSTAGRAM_SEND_MESSAGE.slug:
-                if (
-                    conversation is not None
-                    and instagram_account is not None
-                    and instagram_page_token
-                    and instagram_ig_user_id
-                    and act.integration_account_id == instagram_account.id
-                ):
-                    _add(make_send_instagram_message_tool(
-                        access_token=instagram_page_token,
-                        ig_user_id=instagram_ig_user_id,
-                        conversation=conversation,
-                    ))
-            elif slug == SYSTEM_SEND_CHAT_MESSAGE.slug:
+            if slug == SYSTEM_SEND_CHAT_MESSAGE.slug:
                 if (
                     conversation is not None
                     and conversation.origin == Conversation.Origin.WEB
@@ -238,19 +193,17 @@ class JobTaskProcessorAgent:
         return None
 
     @staticmethod
-    def _user_facing_send_tool_name(conversation: Conversation | None) -> str | None:
-        """Name of the send-message tool for this thread (matches ``build_tools_for_conversation``)."""
+    def _user_facing_send_tool_name(
+        conversation: Conversation | None,
+        dm_targets: list,
+    ) -> str | None:
+        """Name of the primary user-visible send tool for this run (matches tool registration)."""
         if conversation is None:
             return None
         if conversation.origin == Conversation.Origin.WEB:
             return "send_chat_message"
-        account = conversation.integration_account
-        if account is None:
-            return None
-        if account.provider == IntegrationAccount.Provider.TELEGRAM:
-            return "send_telegram_message"
-        if account.provider == IntegrationAccount.Provider.INSTAGRAM:
-            return "send_instagram_message"
+        if dm_targets:
+            return "send_message"
         return None
 
     @staticmethod
@@ -289,14 +242,33 @@ class JobTaskProcessorAgent:
                 "**Persona:** This job has no cyber identity in scope; act as a neutral workspace agent."
             )
 
-        tool_name = JobTaskProcessorAgent._user_facing_send_tool_name(conversation)
-        if tool_name:
-            parts.append(
-                f"In **this** conversation, anything the end user must read or hear must be sent through "
-                f"the **`{tool_name}`** tool (already scoped to this thread). Plain assistant text without "
-                "that tool is not delivered to the user on this channel unless the instructions above say "
-                "otherwise."
+        dm_targets = collect_resolved_send_targets(job=job, conversation=conversation)
+        if dm_targets:
+            pub_lines = "\n".join(
+                f"- {p.target_index}: ({p.target_role}) [{p.integration_type.value}]"
+                for p in (t.to_public() for t in dm_targets)
             )
+            parts.append(
+                "**Outbound send targets** (use `send_message` with `target_index` plus `message`):\n"
+                f"{pub_lines}\n"
+                "Do not guess thread or account ids; only the indices above are valid for this run."
+            )
+
+        tool_name = JobTaskProcessorAgent._user_facing_send_tool_name(conversation, dm_targets)
+        if tool_name:
+            if tool_name == "send_message":
+                parts.append(
+                    "Anything the end user must read or hear on Telegram or Instagram must be sent through "
+                    "the **`send_message`** tool using the correct **`target_index`** from the list above. "
+                    "Plain assistant text without that tool is not delivered on those channels."
+                )
+            else:
+                parts.append(
+                    f"In **this** conversation, anything the end user must read or hear must be sent through "
+                    f"the **`{tool_name}`** tool (already scoped to this thread). Plain assistant text without "
+                    "that tool is not delivered to the user on this channel unless the instructions above say "
+                    "otherwise."
+                )
         else:
             parts.append(
                 "Use the send-message tool attached to this run for user-visible replies; plain assistant "

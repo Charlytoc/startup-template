@@ -467,12 +467,28 @@ def verify_webhook_signature(request: HttpRequest) -> bool:
     return ok
 
 
+def _is_instagram_messaging_edit_notification(messaging: dict[str, Any]) -> bool:
+    """True when Meta is notifying about a DM edit, not a new inbound message."""
+    if not isinstance(messaging, dict):
+        return False
+    msg = messaging.get("message")
+    if isinstance(msg, dict) and msg.get("is_edit"):
+        return True
+    if isinstance(messaging.get("message_edit"), dict):
+        return True
+    return False
+
+
 def _instagram_webhook_messaging_needs_dm_worker(messaging: dict[str, Any]) -> bool:
     """True only for payloads that can represent user text (skip read/delivery-only webhooks)."""
-    if messaging.get("message"):
+    if not isinstance(messaging, dict):
+        return False
+    if _is_instagram_messaging_edit_notification(messaging):
+        return False
+    msg = messaging.get("message")
+    if isinstance(msg, dict) and msg:
         return True
-    edit = messaging.get("message_edit")
-    return bool(isinstance(edit, dict) and str(edit.get("mid") or "").strip())
+    return bool(msg)
 
 
 def _normalize_instagram_messaging_for_dm(messaging: dict[str, Any]) -> dict[str, Any] | None:
@@ -480,6 +496,9 @@ def _normalize_instagram_messaging_for_dm(messaging: dict[str, Any]) -> dict[str
 
     Instagram can deliver edits as ``message_edit`` without a parallel ``message`` webhook; see
     https://developers.facebook.com/docs/instagram-platform/webhooks/examples/
+
+    Webhook dispatch filters out edit notifications before enqueueing the DM worker, so this
+    normalization path is only reached for direct calls or pre-filter legacy payloads.
     """
     if not isinstance(messaging, dict):
         return None
@@ -645,6 +664,9 @@ def process_instagram_webhook_messaging(
         return
     if message.get("is_self"):
         logger.info("instagram_dm_worker skip is_self account_id=%s", account.id)
+        return
+    if _is_instagram_messaging_edit_notification(messaging):
+        logger.info("instagram_dm_worker skip edit_notification account_id=%s", account.id)
         return
 
     sender_igsid = _resolve_instagram_dm_sender_igsid(
