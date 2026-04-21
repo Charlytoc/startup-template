@@ -147,6 +147,31 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Application loggers (e.g. ``core.services.instagram_service``) use INFO; the root logger
+# defaults to WARNING, so without this those messages never reach the console.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "console": {
+            "format": "%(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "console",
+        },
+    },
+    "loggers": {
+        "core": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+    },
+}
+
 # Custom User Model
 AUTH_USER_MODEL = "core.User"
 
@@ -234,6 +259,9 @@ INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID", "")
 INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET", "")
 # Set this to any static string you choose, then enter it in Meta App Dashboard → Webhooks → Verify Token.
 INSTAGRAM_WEBHOOK_VERIFY_TOKEN = os.getenv("INSTAGRAM_WEBHOOK_VERIFY_TOKEN", "")
+# Comma-separated Instagram webhook fields for POST .../subscribed_apps (Instagram Login).
+# See https://developers.facebook.com/docs/instagram-platform/webhooks
+INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS = os.getenv("INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS", "messages")
 
 # Frontend URL used to redirect users back after the Instagram OAuth callback.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")

@@ -302,8 +302,18 @@ def ensure_default_job_assignment_for_instagram(
     - A job already targets this account with ``instagram.send_message``.
     """
     if account.provider != IntegrationAccount.Provider.INSTAGRAM:
+        logger.info(
+            "ensure_default_job_assignment_for_instagram skip wrong_provider account_id=%s provider=%s",
+            account.id,
+            account.provider,
+        )
         return None
     if _has_existing_job_for_instagram_account(account):
+        logger.info(
+            "ensure_default_job_assignment_for_instagram skip job_already_exists account_id=%s workspace_id=%s",
+            account.id,
+            account.workspace_id,
+        )
         return None
 
     workspace = account.workspace

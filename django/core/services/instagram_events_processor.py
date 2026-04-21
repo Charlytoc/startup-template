@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from core.models import CyberIdentity, IntegrationAccount, JobAssignment
+
+logger = logging.getLogger(__name__)
 from core.services.conversations import (
     append_user_message,
     get_or_create_active_conversation,
@@ -31,13 +34,37 @@ def process_instagram_dm(
     message = messaging.get("message") or {}
     text = (message.get("text") or "").strip()
 
+    logger.info(
+        "process_instagram_dm start integration_account_id=%s sender_igsid=%s text_len=%s mid=%s",
+        account.id,
+        sender_igsid,
+        len(text),
+        str(message.get("mid") or "")[:80],
+    )
+
     job = JobTaskProcessorAgent.first_runnable_job_for_instagram_dm(account)
     if job is None:
+        logger.warning(
+            "process_instagram_dm no_runnable_job integration_account_id=%s workspace_id=%s",
+            account.id,
+            account.workspace_id,
+        )
         return
 
     identity = _job_primary_identity(job)
     if identity is None:
+        logger.warning(
+            "process_instagram_dm no_primary_identity job_id=%s integration_account_id=%s",
+            job.id,
+            account.id,
+        )
         return
+
+    logger.info(
+        "process_instagram_dm job_selected job_id=%s identity_id=%s",
+        job.id,
+        identity.id,
+    )
 
     convo = get_or_create_active_conversation(
         account=account,
@@ -52,6 +79,12 @@ def process_instagram_dm(
         content_structured={"instagram_message": messaging},
     )
 
+    logger.info(
+        "process_instagram_dm enqueue_agent job_id=%s conversation_id=%s user_message_id=%s",
+        job.id,
+        convo.id,
+        user_msg.id,
+    )
     run_job_assignment_agent.delay(
         str(job.id),
         str(convo.id),

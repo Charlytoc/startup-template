@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Anchor,
   Button,
   Center,
   Container,
@@ -56,6 +57,15 @@ export default function Home() {
               Sign in
             </Button>
           </Group>
+          <Text size="sm" c="dimmed">
+            <Anchor component={Link} href="/privacy-policy" c="dimmed" underline="hover">
+              Privacy Policy
+            </Anchor>
+            {" · "}
+            <Anchor component={Link} href="/terms-of-service" c="dimmed" underline="hover">
+              Terms of Service
+            </Anchor>
+          </Text>
         </Stack>
       </Container>
     </Center>
