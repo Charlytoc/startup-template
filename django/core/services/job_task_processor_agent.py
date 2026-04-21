@@ -194,6 +194,33 @@ class JobTaskProcessorAgent:
         return matches[0] if matches else None
 
     @staticmethod
+    def primary_identity_for_job(job: JobAssignment) -> CyberIdentity | None:
+        cfg = job.get_config()
+        if not cfg.identities:
+            return None
+        first = cfg.identities[0]
+        return CyberIdentity.objects.filter(id=first.id, workspace=job.workspace).first()
+
+    @staticmethod
+    def integration_channel_for_thread(
+        account: IntegrationAccount,
+        external_thread_id: str,
+    ) -> TelegramPrivateChannel | InstagramDmChannel | None:
+        if account.provider == IntegrationAccount.Provider.TELEGRAM:
+            return TelegramPrivateChannel(
+                type="telegram_private_chat",
+                integration_account_id=account.id,
+                chat_id=external_thread_id,
+            )
+        if account.provider == IntegrationAccount.Provider.INSTAGRAM:
+            return InstagramDmChannel(
+                type="instagram_dm",
+                integration_account_id=account.id,
+                recipient_igsid=external_thread_id,
+            )
+        return None
+
+    @staticmethod
     def model_for_job(job: JobAssignment) -> str | None:
         """Return the first ``identity.config['model']`` found among the job's scoped identities."""
         cfg = job.get_config()

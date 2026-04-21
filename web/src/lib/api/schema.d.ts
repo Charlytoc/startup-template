@@ -118,6 +118,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agentic-chat/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation History
+         * @description Return messages for the active web-chat thread (workspace + identity + current user).
+         */
+        get: operations["core_routers_agentic_chat_get_conversation_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agentic-chat/messages": {
         parameters: {
             query?: never;
@@ -544,6 +564,37 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** AgenticChatHistoryMessage */
+        AgenticChatHistoryMessage: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Role */
+            role: string;
+            /** Content */
+            content: string;
+            /**
+             * Created
+             * Format: date-time
+             */
+            created: string;
+        };
+        /** AgenticChatHistoryResponse */
+        AgenticChatHistoryResponse: {
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Messages */
+            messages: components["schemas"]["AgenticChatHistoryMessage"][];
+        };
+        /** AgenticChatErrorResponse */
+        AgenticChatErrorResponse: {
+            /** Error */
+            error: string;
+            /** Error Code */
+            error_code: string;
+        };
         /** AgenticChatMessageResponse */
         AgenticChatMessageResponse: {
             /** Status */
@@ -554,13 +605,6 @@ export interface components {
             message_id: string;
             /** Job Assignment Id */
             job_assignment_id: string;
-        };
-        /** AgenticChatErrorResponse */
-        AgenticChatErrorResponse: {
-            /** Error */
-            error: string;
-            /** Error Code */
-            error_code: string;
         };
         /** AgenticChatMessageRequest */
         AgenticChatMessageRequest: {
@@ -1107,6 +1151,47 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    core_routers_agentic_chat_get_conversation_history: {
+        parameters: {
+            query: {
+                cyber_identity_id: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatHistoryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgenticChatErrorResponse"];
                 };
             };
         };

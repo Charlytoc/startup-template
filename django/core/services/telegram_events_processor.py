@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.models import CyberIdentity, IntegrationAccount, JobAssignment
+from core.integrations.event_types import TELEGRAM_PRIVATE_MESSAGE
+from core.models import IntegrationAccount, JobAssignment
 from core.services.conversations import (
     append_user_message,
     archive_conversation,
@@ -12,8 +13,11 @@ from core.services.conversations import (
     get_or_create_active_conversation,
 )
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
+from core.services.task_execution_runner import (
+    create_queued_event_task_execution,
+    enqueue_task_execution,
+)
 from core.services.telegram_bot import get_bot_token, telegram_send_message
-from core.tasks.job_assignment_agent import run_job_assignment_agent
 
 NO_TASKS_REPLY = (
     "This bot has any defined tasks configured, please define something to "
@@ -47,14 +51,6 @@ def _external_user_id(message: dict[str, Any]) -> str | None:
     return str(uid)
 
 
-def _job_primary_identity(job: JobAssignment) -> CyberIdentity | None:
-    cfg = job.get_config()
-    if not cfg.identities:
-        return None
-    first = cfg.identities[0]
-    return CyberIdentity.objects.filter(id=first.id, workspace=job.workspace).first()
-
-
 def process_approved_message(account: IntegrationAccount, message: dict[str, Any]) -> None:
     """Resolve the conversation, persist the user message, enqueue the agent (or fall back)."""
     chat = message.get("chat") or {}
@@ -84,7 +80,7 @@ def process_approved_message(account: IntegrationAccount, message: dict[str, Any
         telegram_send_message(bot_token, chat_id, NO_TASKS_REPLY)
         return
 
-    identity = _job_primary_identity(job)
+    identity = JobTaskProcessorAgent.primary_identity_for_job(job)
     if identity is None:
         return
 
@@ -103,8 +99,16 @@ def process_approved_message(account: IntegrationAccount, message: dict[str, Any
         content_structured={"telegram_message": message},
     )
 
-    run_job_assignment_agent.delay(
-        str(job.id),
-        str(convo.id),
-        str(user_msg.id),
+    channel = JobTaskProcessorAgent.integration_channel_for_thread(account, external_thread_id)
+    if channel is None:
+        return
+    instructions = text if text else "Telegram inbound message (no text)."
+    task_ex = create_queued_event_task_execution(
+        job=job,
+        task_instructions=instructions,
+        channel=channel,
+        event_slug=TELEGRAM_PRIVATE_MESSAGE.slug,
+        conversation_id=convo.id,
+        triggering_message_id=user_msg.id,
     )
+    enqueue_task_execution(task_ex.id)

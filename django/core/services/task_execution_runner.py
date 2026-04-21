@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from django.db import transaction
 
@@ -13,18 +14,79 @@ from core.agent.base import Agent, AgentConfig
 from core.models import Conversation, CyberIdentity, IntegrationAccount, JobAssignment, TaskExecution
 from core.models.agent_session_log import AgentSessionLog
 from core.schemas.agentic_chat import ExchangeMessage
-from core.schemas.channel import Channel, TelegramPrivateChannel
+from core.schemas.channel import Channel, InstagramDmChannel, TelegramPrivateChannel, WebChatChannel
 from core.schemas.task_execution import (
+    IdentityConfigSnapshot,
     TaskExecutionError,
+    TaskExecutionInputs,
     TaskExecutionOutputs,
 )
-from core.services.conversations import append_user_message, get_or_create_active_conversation
+from core.services.conversations import (
+    append_user_message,
+    find_active_web_conversation,
+    get_or_create_active_conversation,
+    prior_exchange_messages,
+)
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
 
 logger = logging.getLogger(__name__)
 
 MODEL = "gpt-5.4-mini"
 PROVIDER = "openai"
+
+WEB_CHAT_EVENT_SLUG = "web_chat.user_message"
+
+
+def _trigger_is_event(trigger: dict[str, Any] | None) -> bool:
+    if not trigger:
+        return False
+    return trigger.get("type") == "event"
+
+
+def create_queued_event_task_execution(
+    *,
+    job: JobAssignment,
+    task_instructions: str,
+    channel: Channel,
+    event_slug: str,
+    conversation_id: uuid.UUID,
+    triggering_message_id: uuid.UUID,
+) -> TaskExecution:
+    """Persist a ``TaskExecution`` for an inbound/event-driven run (already ``QUEUED`` for immediate Celery)."""
+    cfg = job.get_config()
+    identity_snapshot: IdentityConfigSnapshot | None = None
+    if cfg.identities:
+        first = cfg.identities[0]
+        identity_snapshot = IdentityConfigSnapshot(identity=first.id, config=first.config)
+
+    inputs = TaskExecutionInputs(
+        task_instructions=task_instructions,
+        parent_job_assignment=job.id,
+        identity_config=identity_snapshot,
+        channel=channel,
+        trigger={
+            "type": "event",
+            "event_slug": event_slug,
+            "conversation_id": str(conversation_id),
+            "triggering_message_id": str(triggering_message_id),
+        },
+    )
+    task = TaskExecution(
+        workspace=job.workspace,
+        job_assignment=job,
+        status=TaskExecution.Status.QUEUED,
+        requires_approval=False,
+        scheduled_to=None,
+    )
+    task.set_inputs(inputs)
+    task.save()
+    return task
+
+
+def enqueue_task_execution(task_id: uuid.UUID) -> None:
+    from core.tasks.task_execution import run_task_execution
+
+    run_task_execution.delay(str(task_id))
 
 
 def run_task_execution(task_execution_id: str, celery_task_id: str | None = None) -> dict:
@@ -59,23 +121,30 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
     if conversation is None:
         return _fail(task, "cannot_resolve_conversation_for_task")
 
-    append_user_message(
-        conversation,
-        content_text=inputs.task_instructions,
-        content_structured={"trigger": "task_execution", "task_execution_id": str(task.id)},
-    )
+    trigger_dict = inputs.trigger if isinstance(inputs.trigger, dict) else None
+    is_event = _trigger_is_event(trigger_dict)
+
+    if is_event:
+        loop_messages = prior_exchange_messages(conversation)
+        if not loop_messages:
+            return _fail(task, "empty_conversation")
+        system_prompt = JobTaskProcessorAgent.build_system_prompt(job)
+    else:
+        append_user_message(
+            conversation,
+            content_text=inputs.task_instructions,
+            content_structured={"trigger": "task_execution", "task_execution_id": str(task.id)},
+        )
+        system_prompt = (
+            JobTaskProcessorAgent.build_system_prompt(job)
+            + "\n\nYou are executing a deferred task created earlier. Use the tools "
+            "to complete the instructions below. When you are done, output a brief confirmation."
+        )
+        loop_messages = [ExchangeMessage(role="user", content=inputs.task_instructions)]
 
     tools = JobTaskProcessorAgent.build_tools_for_conversation(job=job, conversation=conversation)
     if not tools:
         return _fail(task, "no_tools_available_for_task")
-
-    system_prompt = (
-        JobTaskProcessorAgent.build_system_prompt(job)
-        + "\n\nYou are executing a deferred task created earlier. Use the tools "
-        "to complete the instructions below. When you are done, output a brief confirmation."
-    )
-    user_content = inputs.task_instructions
-    loop_messages = [ExchangeMessage(role="user", content=user_content)]
 
     model = JobTaskProcessorAgent.model_for_job(job) or MODEL
     log = AgentSessionLog.objects.create(
@@ -117,7 +186,12 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             "messages": [m.model_dump() for m in summary.messages],
             "task_execution_id": str(task.id),
             "job_assignment_id": str(job.id),
+            "conversation_id": str(conversation.id),
         }
+        if trigger_dict and is_event:
+            tid = trigger_dict.get("triggering_message_id")
+            if tid:
+                log.outputs["triggering_message_id"] = str(tid)
         if summary.error:
             log.error_message = summary.error
         log.save()
@@ -163,29 +237,52 @@ def _resolve_conversation_for_task(
     job: JobAssignment, channel: Channel | None
 ) -> Conversation | None:
     """Find or create the ``Conversation`` the task should speak on, based on its channel."""
-    if not isinstance(channel, TelegramPrivateChannel):
-        return None
-    account = IntegrationAccount.objects.filter(
-        id=channel.integration_account_id, workspace=job.workspace
-    ).first()
-    if account is None:
+    if channel is None:
         return None
 
-    cfg = job.get_config()
-    if not cfg.identities:
-        return None
-    identity = CyberIdentity.objects.filter(
-        id=cfg.identities[0].id, workspace=job.workspace
-    ).first()
+    identity = JobTaskProcessorAgent.primary_identity_for_job(job)
     if identity is None:
         return None
 
-    return get_or_create_active_conversation(
-        account=account,
-        cyber_identity=identity,
-        external_thread_id=channel.chat_id,
-        external_user_id=channel.chat_id,
-    )
+    if isinstance(channel, TelegramPrivateChannel):
+        account = IntegrationAccount.objects.filter(
+            id=channel.integration_account_id, workspace=job.workspace
+        ).first()
+        if account is None:
+            return None
+        return get_or_create_active_conversation(
+            account=account,
+            cyber_identity=identity,
+            external_thread_id=channel.chat_id,
+            external_user_id=channel.chat_id,
+        )
+
+    if isinstance(channel, InstagramDmChannel):
+        account = IntegrationAccount.objects.filter(
+            id=channel.integration_account_id, workspace=job.workspace
+        ).first()
+        if account is None:
+            return None
+        return get_or_create_active_conversation(
+            account=account,
+            cyber_identity=identity,
+            external_thread_id=channel.recipient_igsid,
+            external_user_id=channel.recipient_igsid,
+        )
+
+    if isinstance(channel, WebChatChannel):
+        cyber = CyberIdentity.objects.filter(
+            id=channel.cyber_identity_id, workspace=job.workspace
+        ).first()
+        if cyber is None:
+            return None
+        return find_active_web_conversation(
+            workspace=job.workspace,
+            cyber_identity=cyber,
+            web_user_id=channel.user_id,
+        )
+
+    return None
 
 
 def _fail(task: TaskExecution, reason: str) -> dict:

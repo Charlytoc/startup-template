@@ -5,23 +5,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from core.models import CyberIdentity, IntegrationAccount, JobAssignment
-
-logger = logging.getLogger(__name__)
+from core.integrations.event_types import INSTAGRAM_DM_MESSAGE
+from core.models import IntegrationAccount
 from core.services.conversations import (
     append_user_message,
     get_or_create_active_conversation,
 )
 from core.services.job_task_processor_agent import JobTaskProcessorAgent
-from core.tasks.job_assignment_agent import run_job_assignment_agent
+from core.services.task_execution_runner import (
+    create_queued_event_task_execution,
+    enqueue_task_execution,
+)
 
-
-def _job_primary_identity(job: JobAssignment) -> CyberIdentity | None:
-    cfg = job.get_config()
-    if not cfg.identities:
-        return None
-    first = cfg.identities[0]
-    return CyberIdentity.objects.filter(id=first.id, workspace=job.workspace).first()
+logger = logging.getLogger(__name__)
 
 
 def process_instagram_dm(
@@ -51,7 +47,7 @@ def process_instagram_dm(
         )
         return
 
-    identity = _job_primary_identity(job)
+    identity = JobTaskProcessorAgent.primary_identity_for_job(job)
     if identity is None:
         logger.warning(
             "process_instagram_dm no_primary_identity job_id=%s integration_account_id=%s",
@@ -85,8 +81,16 @@ def process_instagram_dm(
         convo.id,
         user_msg.id,
     )
-    run_job_assignment_agent.delay(
-        str(job.id),
-        str(convo.id),
-        str(user_msg.id),
+    channel = JobTaskProcessorAgent.integration_channel_for_thread(account, sender_igsid)
+    if channel is None:
+        return
+    instructions = text if text else "Instagram inbound message (no text)."
+    task_ex = create_queued_event_task_execution(
+        job=job,
+        task_instructions=instructions,
+        channel=channel,
+        event_slug=INSTAGRAM_DM_MESSAGE.slug,
+        conversation_id=convo.id,
+        triggering_message_id=user_msg.id,
     )
+    enqueue_task_execution(task_ex.id)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -61,6 +61,39 @@ type AgenticChatMessageResponse = {
 
 type AgenticChatErrorResponse = { error: string; error_code: string };
 
+type AgenticChatHistoryMessage = {
+  id: string;
+  role: string;
+  content: string;
+  created: string;
+};
+
+type AgenticChatHistoryResponse = {
+  conversation_id: string | null;
+  messages: AgenticChatHistoryMessage[];
+};
+
+async function fetchAgenticChatHistory(
+  token: string,
+  organizationId: string,
+  cyberIdentityId: string,
+): Promise<AgenticChatHistoryResponse> {
+  const url = new URL(`${API_BASE_URL}/agentic-chat/history`);
+  url.searchParams.set("cyber_identity_id", cyberIdentityId);
+  const response = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      [ORGANIZATION_HEADER]: organizationId,
+    },
+  });
+  const data = (await response.json()) as AgenticChatHistoryResponse | AgenticChatErrorResponse | ApiError;
+  if (!response.ok) {
+    const err = data as AgenticChatErrorResponse | ApiError;
+    throw new Error(err.error ?? response.statusText);
+  }
+  return data as AgenticChatHistoryResponse;
+}
+
 type RealtimeMessage = {
   message: {
     role: "assistant";
@@ -79,6 +112,7 @@ type ChatEntry = {
 const REALTIME_URL = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:3001";
 
 export default function ChatPage() {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const identityId = searchParams.get("identity");
@@ -183,6 +217,16 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, { id: `${Date.now()}-user`, role: "user", content: message }]);
       setWaiting(true);
     },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "agentic-chat-history",
+          variables.token,
+          variables.organizationId,
+          variables.cyberIdentityId,
+        ],
+      });
+    },
     onError: (err: Error) => {
       setStatus(`Chat error: ${err.message}`);
       setWaiting(false);
@@ -195,6 +239,41 @@ export default function ChatPage() {
     const picked = selectedOrgId != null ? String(selectedOrgId) : null;
     return picked ?? fromUser ?? null;
   }, [user, selectedOrgId]);
+
+  const historyEnabled = Boolean(user && token && activeOrganizationId && identityId);
+
+  const {
+    data: chatHistory,
+    isPending: historyPending,
+    isError: historyError,
+    error: historyErr,
+  } = useQuery({
+    queryKey: ["agentic-chat-history", token, activeOrganizationId, identityId],
+    queryFn: () => fetchAgenticChatHistory(token!, activeOrganizationId!, identityId!),
+    enabled: historyEnabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    setMessages([]);
+  }, [identityId]);
+
+  useEffect(() => {
+    if (!chatHistory?.messages) return;
+    setMessages(
+      chatHistory.messages.map((m) => ({
+        id: m.id,
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content || "",
+      })),
+    );
+  }, [chatHistory]);
+
+  useEffect(() => {
+    if (!historyError || !(historyErr instanceof Error)) return;
+    setStatus(`History: ${historyErr.message}`);
+  }, [historyError, historyErr]);
 
   const needsIdentityPicker = Boolean(user && token && activeOrganizationId && !identityId);
 
@@ -501,13 +580,17 @@ export default function ChatPage() {
         <Stack gap="md" py="sm" maw={720} mx="auto">
           {messages.length === 0 && (
             <Center h={200}>
-              <Stack align="center" gap="xs">
-                <Text size="xl">👋</Text>
-                <Text fw={500}>How can I help you today?</Text>
-                <Text size="sm" c="dimmed">
-                  Ask me anything — I have access to your profile info.
-                </Text>
-              </Stack>
+              {historyPending ? (
+                <Loader size="sm" />
+              ) : (
+                <Stack align="center" gap="xs">
+                  <Text size="xl">👋</Text>
+                  <Text fw={500}>How can I help you today?</Text>
+                  <Text size="sm" c="dimmed">
+                    Ask me anything — I have access to your profile info.
+                  </Text>
+                </Stack>
+              )}
             </Center>
           )}
 
