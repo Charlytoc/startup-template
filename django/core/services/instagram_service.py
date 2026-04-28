@@ -46,7 +46,7 @@ _OAUTH_STATE_PREFIX = "ig_oauth_state:"
 # Scopes for Instagram Business Login
 INSTAGRAM_OAUTH_SCOPES = [
     "instagram_business_basic",
-    "instagram_business_manage_messages"
+    "instagram_business_manage_messages",
 ]
 
 
@@ -65,6 +65,7 @@ def _oauth_response_for_log(data: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Settings helpers
 # ---------------------------------------------------------------------------
+
 
 def _app_id() -> str:
     return str(getattr(settings, "INSTAGRAM_APP_ID", "") or "")
@@ -87,6 +88,7 @@ def _callback_url() -> str:
 # OAuth state (Redis cache)
 # ---------------------------------------------------------------------------
 
+
 def _state_cache_key(state_token: str) -> str:
     return f"{_OAUTH_STATE_PREFIX}{state_token}"
 
@@ -94,7 +96,11 @@ def _state_cache_key(state_token: str) -> str:
 def store_oauth_state(workspace_id: int, user_id: int) -> str:
     """Generate a random state token, store workspace/user in cache, return the token."""
     token = secrets.token_urlsafe(32)
-    cache.set(_state_cache_key(token), {"workspace_id": workspace_id, "user_id": user_id}, _OAUTH_STATE_TTL)
+    cache.set(
+        _state_cache_key(token),
+        {"workspace_id": workspace_id, "user_id": user_id},
+        _OAUTH_STATE_TTL,
+    )
     return token
 
 
@@ -116,6 +122,7 @@ def consume_oauth_state(state_token: str) -> dict[str, int] | None:
 # OAuth URL builder
 # ---------------------------------------------------------------------------
 
+
 def build_instagram_oauth_url(state_token: str) -> str:
     redirect_uri = _callback_url()
     app_id = _app_id()
@@ -133,6 +140,7 @@ def build_instagram_oauth_url(state_token: str) -> str:
 # Token exchange (Instagram Business Login)
 # ---------------------------------------------------------------------------
 
+
 def instagram_exchange_code(code: str) -> dict[str, Any]:
     """Exchange authorization code for a short-lived Instagram user access token."""
     resp = requests.post(
@@ -148,8 +156,15 @@ def instagram_exchange_code(code: str) -> dict[str, Any]:
     )
     data = resp.json()
     if "error_type" in data or "error" in data:
-        msg = data.get("error_message") or data.get("error", {}).get("message") or "Code exchange failed"
-        logger.warning("instagram oauth exchange error=%s", _oauth_response_for_log(data) if isinstance(data, dict) else data)
+        msg = (
+            data.get("error_message")
+            or data.get("error", {}).get("message")
+            or "Code exchange failed"
+        )
+        logger.warning(
+            "instagram oauth exchange error=%s",
+            _oauth_response_for_log(data) if isinstance(data, dict) else data,
+        )
         raise ValueError(msg)
     return data
 
@@ -169,13 +184,16 @@ def instagram_get_long_lived_token(short_token: str) -> dict[str, Any]:
     data = resp.json()
     if "error" in data:
         logger.warning("instagram long_lived_token error=%s", data.get("error"))
-        raise ValueError(data["error"].get("message", "Long-lived token exchange failed"))
+        raise ValueError(
+            data["error"].get("message", "Long-lived token exchange failed")
+        )
     return data
 
 
 # ---------------------------------------------------------------------------
 # Graph API: user info
 # ---------------------------------------------------------------------------
+
 
 def instagram_get_user_info(access_token: str) -> dict[str, Any]:
     """Fetch IG profile fields for the authenticated user.
@@ -204,7 +222,10 @@ def instagram_get_user_info(access_token: str) -> dict[str, Any]:
 # Graph API: send DM
 # ---------------------------------------------------------------------------
 
-def instagram_send_message(access_token: str, ig_user_id: str, recipient_igsid: str, text: str) -> dict[str, Any]:
+
+def instagram_send_message(
+    access_token: str, ig_user_id: str, recipient_igsid: str, text: str
+) -> dict[str, Any]:
     """Send a text DM from the IG Business Account to recipient_igsid."""
     resp = requests.post(
         f"{INSTAGRAM_GRAPH_BASE}/{INSTAGRAM_GRAPH_API_VERSION}/{ig_user_id}/messages",
@@ -236,7 +257,9 @@ def _instagram_webhook_subscribed_fields_csv() -> str:
     return s if s else "messages"
 
 
-def instagram_enable_webhook_subscriptions(*, access_token: str, ig_user_id: str) -> dict[str, Any]:
+def instagram_enable_webhook_subscriptions(
+    *, access_token: str, ig_user_id: str
+) -> dict[str, Any]:
     """Enable Meta→app webhook delivery for this Instagram professional account.
 
     Per Meta: ``POST https://graph.instagram.com/{{version}}/{{instagram-account-id}}/subscribed_apps``
@@ -256,17 +279,32 @@ def instagram_enable_webhook_subscriptions(*, access_token: str, ig_user_id: str
     try:
         data = resp.json()
     except ValueError:
-        logger.warning("instagram subscribed_apps POST invalid_json http_status=%s", resp.status_code)
-        return {"success": False, "http_status": resp.status_code, "error": "invalid_json"}
+        logger.warning(
+            "instagram subscribed_apps POST invalid_json http_status=%s",
+            resp.status_code,
+        )
+        return {
+            "success": False,
+            "http_status": resp.status_code,
+            "error": "invalid_json",
+        }
     if not isinstance(data, dict):
-        return {"success": False, "http_status": resp.status_code, "error": "non_object_response"}
+        return {
+            "success": False,
+            "http_status": resp.status_code,
+            "error": "non_object_response",
+        }
     if "error" in data:
         logger.warning(
             "instagram subscribed_apps POST graph_error http_status=%s err=%s",
             resp.status_code,
             json.dumps(data.get("error"), default=str)[:2000],
         )
-        return {"success": False, "http_status": resp.status_code, "error": data.get("error")}
+        return {
+            "success": False,
+            "http_status": resp.status_code,
+            "error": data.get("error"),
+        }
     if data.get("success") is True:
         return {"success": True, "http_status": resp.status_code, "data": data}
     ok = 200 <= resp.status_code < 300
@@ -278,7 +316,9 @@ def instagram_enable_webhook_subscriptions(*, access_token: str, ig_user_id: str
     return {"success": ok, "http_status": resp.status_code, "data": data}
 
 
-def instagram_disable_webhook_subscriptions(*, access_token: str, ig_user_id: str) -> dict[str, Any]:
+def instagram_disable_webhook_subscriptions(
+    *, access_token: str, ig_user_id: str
+) -> dict[str, Any]:
     """Remove this app's webhook subscription for the IG account (best-effort; same path as POST)."""
     uid = str(ig_user_id or "").strip()
     if not access_token or not uid:
@@ -288,24 +328,40 @@ def instagram_disable_webhook_subscriptions(*, access_token: str, ig_user_id: st
     try:
         data = resp.json()
     except ValueError:
-        logger.warning("instagram subscribed_apps DELETE invalid_json http_status=%s", resp.status_code)
-        return {"success": False, "http_status": resp.status_code, "error": "invalid_json"}
+        logger.warning(
+            "instagram subscribed_apps DELETE invalid_json http_status=%s",
+            resp.status_code,
+        )
+        return {
+            "success": False,
+            "http_status": resp.status_code,
+            "error": "invalid_json",
+        }
     if isinstance(data, dict) and "error" in data:
         logger.warning(
             "instagram subscribed_apps DELETE graph_error http_status=%s err=%s",
             resp.status_code,
             json.dumps(data.get("error"), default=str)[:2000],
         )
-        return {"success": False, "http_status": resp.status_code, "error": data.get("error")}
+        return {
+            "success": False,
+            "http_status": resp.status_code,
+            "error": data.get("error"),
+        }
     if isinstance(data, dict) and data.get("success") is True:
         return {"success": True, "http_status": resp.status_code, "data": data}
     ok = 200 <= resp.status_code < 300
-    return {"success": ok, "http_status": resp.status_code, "data": data if isinstance(data, dict) else {}}
+    return {
+        "success": ok,
+        "http_status": resp.status_code,
+        "data": data if isinstance(data, dict) else {},
+    }
 
 
 # ---------------------------------------------------------------------------
 # IntegrationAccount helpers
 # ---------------------------------------------------------------------------
+
 
 def get_access_token(account: IntegrationAccount) -> str:
     return str((account.auth or {}).get(AUTH_ACCESS_TOKEN, "")).strip()
@@ -422,7 +478,9 @@ def instagram_dm_sender_handle_from_webhook_or_profile(
 
 
 def get_ig_user_id(account: IntegrationAccount) -> str:
-    return str((account.config or {}).get(CONFIG_IG_USER_ID, account.external_account_id)).strip()
+    return str(
+        (account.config or {}).get(CONFIG_IG_USER_ID, account.external_account_id)
+    ).strip()
 
 
 def _find_account_by_ig_user_id(ig_user_id: str) -> IntegrationAccount | None:
@@ -447,6 +505,7 @@ def _find_account_by_ig_user_id(ig_user_id: str) -> IntegrationAccount | None:
 # ---------------------------------------------------------------------------
 # Connect / disconnect
 # ---------------------------------------------------------------------------
+
 
 def connect_instagram_account(
     *,
@@ -507,7 +566,10 @@ def connect_instagram_account(
         account.auth = {AUTH_ACCESS_TOKEN: access_token}
         account.save()
 
-        from core.services.job_assignment_defaults import ensure_default_job_assignment_for_instagram
+        from core.services.job_assignment_defaults import (
+            ensure_default_job_assignment_for_instagram,
+        )
+
         ensure_default_job_assignment_for_instagram(account=account, user=user)
 
     logger.info(
@@ -518,7 +580,9 @@ def connect_instagram_account(
         account.external_account_id,
     )
 
-    sub = instagram_enable_webhook_subscriptions(access_token=access_token, ig_user_id=ig_user_id)
+    sub = instagram_enable_webhook_subscriptions(
+        access_token=access_token, ig_user_id=ig_user_id
+    )
     if not sub.get("success"):
         logger.warning(
             "instagram subscribed_apps_failed account_id=%s detail=%s",
@@ -537,12 +601,18 @@ def disconnect_instagram_account(account: IntegrationAccount) -> None:
     token = get_access_token(account)
     ig_uid = str(account.external_account_id or "").strip() or get_ig_user_id(account)
     if token and ig_uid:
-        unsub = instagram_disable_webhook_subscriptions(access_token=token, ig_user_id=ig_uid)
+        unsub = instagram_disable_webhook_subscriptions(
+            access_token=token, ig_user_id=ig_uid
+        )
         if not unsub.get("success"):
             logger.warning(
                 "instagram subscribed_apps DELETE failed account_id=%s detail=%s",
                 account.id,
                 json.dumps(unsub, default=str)[:2000],
+            )
+        else:
+            logger.info(
+                "Isntagram account unsubscribed successfully account_id=%s", account.id
             )
     account.delete()
 
@@ -550,6 +620,7 @@ def disconnect_instagram_account(account: IntegrationAccount) -> None:
 # ---------------------------------------------------------------------------
 # Webhook
 # ---------------------------------------------------------------------------
+
 
 def verify_webhook_signature(request: HttpRequest) -> bool:
     """Validate X-Hub-Signature-256 against HMAC-SHA256(app_secret, body)."""
@@ -559,7 +630,9 @@ def verify_webhook_signature(request: HttpRequest) -> bool:
         return False
     sig_header = request.headers.get("X-Hub-Signature-256", "")
     if not sig_header:
-        logger.warning("instagram_webhook_signature fail missing X-Hub-Signature-256 header")
+        logger.warning(
+            "instagram_webhook_signature fail missing X-Hub-Signature-256 header"
+        )
         return False
     if not sig_header.startswith("sha256="):
         logger.warning(
@@ -567,7 +640,9 @@ def verify_webhook_signature(request: HttpRequest) -> bool:
             sig_header[:16],
         )
         return False
-    expected = "sha256=" + hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
+    expected = (
+        "sha256=" + hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
+    )
     ok = secrets.compare_digest(expected, sig_header)
     if not ok:
         logger.warning(
@@ -601,7 +676,9 @@ def _instagram_webhook_messaging_needs_dm_worker(messaging: dict[str, Any]) -> b
     return bool(msg)
 
 
-def _normalize_instagram_messaging_for_dm(messaging: dict[str, Any]) -> dict[str, Any] | None:
+def _normalize_instagram_messaging_for_dm(
+    messaging: dict[str, Any],
+) -> dict[str, Any] | None:
     """Return ``messaging`` with a ``message`` object, synthesizing one from ``message_edit`` when needed.
 
     Instagram can deliver edits as ``message_edit`` without a parallel ``message`` webhook; see
@@ -635,7 +712,9 @@ def _normalize_instagram_messaging_for_dm(messaging: dict[str, Any]) -> dict[str
     return merged
 
 
-def _instagram_sender_from_stored_mid(*, account: IntegrationAccount, mid: str) -> str | None:
+def _instagram_sender_from_stored_mid(
+    *, account: IntegrationAccount, mid: str
+) -> str | None:
     """Recover the DM peer IGSID using a prior user ``Message`` or ``IntegrationEvent`` with the same ``mid``."""
     from core.models.conversation import Conversation
     from core.models.message import Message
@@ -676,7 +755,9 @@ def _instagram_sender_from_stored_mid(*, account: IntegrationAccount, mid: str) 
     return None
 
 
-def _instagram_sender_from_single_active_thread(*, account: IntegrationAccount) -> str | None:
+def _instagram_sender_from_single_active_thread(
+    *, account: IntegrationAccount
+) -> str | None:
     """If exactly one active integration thread exists, use its external thread id as the peer."""
     from core.models.conversation import Conversation
 
@@ -734,7 +815,9 @@ def _resolve_instagram_dm_sender_igsid(
             return recovered
         single = _instagram_sender_from_single_active_thread(account=account)
         if single and _peer(single):
-            logger.debug("instagram_dm_sender_recovered_single_thread sender=%s", single)
+            logger.debug(
+                "instagram_dm_sender_recovered_single_thread sender=%s", single
+            )
             return single
 
     return ""
@@ -776,7 +859,9 @@ def process_instagram_webhook_messaging(
         logger.info("instagram_dm_worker skip is_self account_id=%s", account.id)
         return
     if _is_instagram_messaging_edit_notification(messaging):
-        logger.info("instagram_dm_worker skip edit_notification account_id=%s", account.id)
+        logger.info(
+            "instagram_dm_worker skip edit_notification account_id=%s", account.id
+        )
         return
 
     sender_igsid = _resolve_instagram_dm_sender_igsid(
@@ -806,7 +891,9 @@ def process_instagram_webhook_messaging(
 
     from core.services.instagram_events_processor import process_instagram_dm
 
-    process_instagram_dm(account=account, messaging=messaging, sender_igsid=sender_igsid)
+    process_instagram_dm(
+        account=account, messaging=messaging, sender_igsid=sender_igsid
+    )
 
 
 def _handle_webhook_payload(payload: dict[str, Any]) -> None:
@@ -818,7 +905,9 @@ def _handle_webhook_payload(payload: dict[str, Any]) -> None:
 
     entries = payload.get("entry", [])
     if not isinstance(entries, list):
-        logger.warning("instagram webhook malformed entry type=%s", type(entries).__name__)
+        logger.warning(
+            "instagram webhook malformed entry type=%s", type(entries).__name__
+        )
         return
 
     for entry in entries:
@@ -826,7 +915,9 @@ def _handle_webhook_payload(payload: dict[str, Any]) -> None:
             continue
         ig_account_id = str(entry.get("id") or "")
         if not ig_account_id:
-            logger.warning("instagram webhook entry missing id keys=%s", list(entry.keys()))
+            logger.warning(
+                "instagram webhook entry missing id keys=%s", list(entry.keys())
+            )
             continue
 
         messaging_list = entry.get("messaging", [])
@@ -890,7 +981,9 @@ def process_webhook_request(request: HttpRequest) -> tuple[int, str]:
         body = request.body.decode("utf-8") if request.body else ""
         payload = json.loads(body) if body else {}
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        logger.warning("instagram webhook POST invalid_json body_len=%s err=%s", raw_len, exc)
+        logger.warning(
+            "instagram webhook POST invalid_json body_len=%s err=%s", raw_len, exc
+        )
         return 400, "invalid json"
 
     if not isinstance(payload, dict):
@@ -908,13 +1001,19 @@ def process_webhook_request(request: HttpRequest) -> tuple[int, str]:
     return 200, "ok"
 
 
-def handle_webhook_verification(hub_mode: str, hub_verify_token: str, hub_challenge: str) -> tuple[int, str]:
+def handle_webhook_verification(
+    hub_mode: str, hub_verify_token: str, hub_challenge: str
+) -> tuple[int, str]:
     """Respond to Meta's GET webhook verification handshake."""
     verify_token = str(getattr(settings, "INSTAGRAM_WEBHOOK_VERIFY_TOKEN", "") or "")
-    if hub_mode == "subscribe" and secrets.compare_digest(hub_verify_token, verify_token):
+    if hub_mode == "subscribe" and secrets.compare_digest(
+        hub_verify_token, verify_token
+    ):
         logger.info("instagram webhook verify ok")
         return 200, hub_challenge
-    token_ok = bool(verify_token) and secrets.compare_digest(hub_verify_token, verify_token)
+    token_ok = bool(verify_token) and secrets.compare_digest(
+        hub_verify_token, verify_token
+    )
     logger.warning(
         "instagram webhook verify forbidden hub_mode=%r subscribe=%s token_ok=%s",
         hub_mode,
@@ -939,14 +1038,20 @@ class InstagramIntegrationService:
     instagram_get_long_lived_token = staticmethod(instagram_get_long_lived_token)
     instagram_get_user_info = staticmethod(instagram_get_user_info)
     instagram_send_message = staticmethod(instagram_send_message)
-    instagram_enable_webhook_subscriptions = staticmethod(instagram_enable_webhook_subscriptions)
-    instagram_disable_webhook_subscriptions = staticmethod(instagram_disable_webhook_subscriptions)
+    instagram_enable_webhook_subscriptions = staticmethod(
+        instagram_enable_webhook_subscriptions
+    )
+    instagram_disable_webhook_subscriptions = staticmethod(
+        instagram_disable_webhook_subscriptions
+    )
     get_access_token = staticmethod(get_access_token)
     get_ig_user_id = staticmethod(get_ig_user_id)
     connect_instagram_account = staticmethod(connect_instagram_account)
     disconnect_instagram_account = staticmethod(disconnect_instagram_account)
     verify_webhook_signature = staticmethod(verify_webhook_signature)
-    process_instagram_webhook_messaging = staticmethod(process_instagram_webhook_messaging)
+    process_instagram_webhook_messaging = staticmethod(
+        process_instagram_webhook_messaging
+    )
     process_webhook_request = staticmethod(process_webhook_request)
     handle_webhook_verification = staticmethod(handle_webhook_verification)
 
