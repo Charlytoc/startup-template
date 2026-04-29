@@ -8,6 +8,7 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Center,
@@ -37,8 +38,13 @@ import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 import { fetchJobAssignments } from "@/lib/workspace-job-assignments";
 import {
   ARTIFACT_KIND_OPTIONS,
+  artifactTextBody,
+  artifactTitle,
   deleteWorkspaceArtifact,
   fetchWorkspaceArtifacts,
+  formatArtifactBytes,
+  isHtmlTextArtifact,
+  isImageArtifact,
   type ArtifactKind,
   type WorkspaceArtifact,
 } from "@/lib/workspace-artifacts";
@@ -48,29 +54,7 @@ function parseWorkspaceId(value: string | string[] | undefined): number {
   return Number.parseInt(raw ?? "", 10);
 }
 
-function artifactTitle(row: WorkspaceArtifact): string {
-  if (row.label.trim()) return row.label;
-  if (row.media?.display_name) return row.media.display_name;
-  if (typeof row.metadata.title === "string" && row.metadata.title.trim()) {
-    return row.metadata.title;
-  }
-  return `${row.kind} artifact`;
-}
-
-function textPreview(row: WorkspaceArtifact): string | null {
-  const text = row.metadata.text;
-  if (typeof text === "string" && text.trim()) return text.trim();
-  const summary = row.metadata.summary;
-  if (typeof summary === "string" && summary.trim()) return summary.trim();
-  return null;
-}
-
-function formatBytes(value: number | null): string {
-  if (value == null) return "";
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
+const ARTIFACT_CARD_PREVIEW_PX = 280;
 
 export default function WorkspaceArtifactsPage() {
   const queryClient = useQueryClient();
@@ -197,6 +181,7 @@ export default function WorkspaceArtifactsPage() {
           kind,
         ],
       });
+      void queryClient.invalidateQueries({ queryKey: ["workspace-artifact", token, orgId, workspaceId] });
     },
   });
 
@@ -400,23 +385,20 @@ export default function WorkspaceArtifactsPage() {
         ) : (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             {artifacts.map((row) => {
-              const preview = textPreview(row);
+              const preview = artifactTextBody(row);
               const mediaMeta = row.media
-                ? [row.media.mime_type, formatBytes(row.media.byte_size)].filter(Boolean).join(" · ")
+                ? [row.media.mime_type, formatArtifactBytes(row.media.byte_size)].filter(Boolean).join(" · ")
                 : "";
+              const showImagePreview = isImageArtifact(row);
+              const showHtmlPreview = isHtmlTextArtifact(row) && preview;
               return (
                 <Card key={row.id} withBorder radius="md" p="lg">
                   <Stack gap="sm">
                     <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
                       <div style={{ minWidth: 0 }}>
-                        <Group gap="xs" mb={4}>
-                          <Badge variant="light">{row.kind}</Badge>
-                          {row.task_execution?.status ? (
-                            <Badge variant="outline" color="gray">
-                              {row.task_execution.status}
-                            </Badge>
-                          ) : null}
-                        </Group>
+                        <Badge variant="light" mb={4}>
+                          {row.kind}
+                        </Badge>
                         <Title order={4}>{artifactTitle(row)}</Title>
                         <Text size="xs" c="dimmed">
                           {new Date(row.created).toLocaleString()}
@@ -436,38 +418,141 @@ export default function WorkspaceArtifactsPage() {
 
                     {preview ? (
                       <Paper withBorder radius="sm" p="sm" bg="var(--mantine-color-gray-light)">
-                        <Text size="sm" lineClamp={5} style={{ whiteSpace: "pre-wrap" }}>
-                          {preview}
-                        </Text>
+                        <Stack gap="xs">
+                          <Box
+                            h={ARTIFACT_CARD_PREVIEW_PX}
+                            w="100%"
+                            style={{
+                              overflow: "hidden",
+                              borderRadius: 8,
+                              border: "1px solid var(--mantine-color-default-border)",
+                              background: "var(--mantine-color-body)",
+                            }}
+                          >
+                            {showHtmlPreview ? (
+                              <Box
+                                component="iframe"
+                                srcDoc={preview}
+                                sandbox=""
+                                title={artifactTitle(row)}
+                                style={{
+                                  display: "block",
+                                  width: "100%",
+                                  height: "100%",
+                                  border: 0,
+                                  background: "white",
+                                }}
+                              />
+                            ) : (
+                              <Box
+                                h="100%"
+                                p="sm"
+                                style={{
+                                  overflow: "auto",
+                                  background: "var(--mantine-color-gray-light)",
+                                }}
+                              >
+                                <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                                  {preview}
+                                </Text>
+                              </Box>
+                            )}
+                          </Box>
+                          <Button
+                            component={Link}
+                            href={`/workspaces/${workspaceId}/artifacts/${row.id}`}
+                            variant="subtle"
+                            size="xs"
+                            w="fit-content"
+                          >
+                            Open
+                          </Button>
+                        </Stack>
                       </Paper>
                     ) : row.media ? (
-                      <Paper withBorder radius="sm" p="sm">
-                        <Text size="sm" fw={500}>
-                          {row.media.display_name}
-                        </Text>
-                        {mediaMeta ? (
-                          <Text size="xs" c="dimmed">
-                            {mediaMeta}
-                          </Text>
-                        ) : null}
-                        {row.media.public_url ? (
-                          <Button
-                            component="a"
-                            href={row.media.public_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            variant="light"
-                            size="xs"
-                            mt="xs"
+                      <Paper withBorder radius="sm" p="sm" bg="var(--mantine-color-gray-light)">
+                        <Stack gap="xs">
+                          <Box
+                            h={ARTIFACT_CARD_PREVIEW_PX}
+                            w="100%"
+                            style={{
+                              overflow: "hidden",
+                              borderRadius: 8,
+                              border: "1px solid var(--mantine-color-default-border)",
+                              background: "var(--mantine-color-body)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
                           >
-                            Open media
+                            {showImagePreview ? (
+                              <Box
+                                component="img"
+                                src={row.media.public_url!}
+                                alt={artifactTitle(row)}
+                                style={{
+                                  display: "block",
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "contain",
+                                }}
+                              />
+                            ) : (
+                              <Text size="sm" c="dimmed" ta="center" px="md">
+                                {mediaMeta || "Media file"}
+                              </Text>
+                            )}
+                          </Box>
+                          <div>
+                            <Text size="sm" fw={500}>
+                              {row.media.display_name}
+                            </Text>
+                            {mediaMeta ? (
+                              <Text size="xs" c="dimmed">
+                                {mediaMeta}
+                              </Text>
+                            ) : null}
+                          </div>
+                          <Button
+                            component={Link}
+                            href={`/workspaces/${workspaceId}/artifacts/${row.id}`}
+                            variant="subtle"
+                            size="xs"
+                            w="fit-content"
+                          >
+                            Open
                           </Button>
-                        ) : null}
+                        </Stack>
                       </Paper>
                     ) : (
-                      <Text size="sm" c="dimmed">
-                        No inline preview for this artifact kind.
-                      </Text>
+                      <Paper withBorder radius="sm" p="sm" bg="var(--mantine-color-gray-light)">
+                        <Stack gap="xs">
+                          <Box
+                            h={ARTIFACT_CARD_PREVIEW_PX}
+                            w="100%"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 8,
+                              border: "1px solid var(--mantine-color-default-border)",
+                            }}
+                          >
+                            <Text size="sm" c="dimmed" ta="center" px="md">
+                              No inline preview for this artifact kind.
+                            </Text>
+                          </Box>
+                          <Button
+                            component={Link}
+                            href={`/workspaces/${workspaceId}/artifacts/${row.id}`}
+                            variant="light"
+                            size="xs"
+                            w="fit-content"
+                          >
+                            Open details
+                          </Button>
+                        </Stack>
+                      </Paper>
                     )}
 
                     <Stack gap={4}>
@@ -485,28 +570,17 @@ export default function WorkspaceArtifactsPage() {
                       </Text>
                     </Stack>
 
-                    <Group gap="xs">
-                      {row.task_execution?.job_assignment_id ? (
-                        <Button
-                          component={Link}
-                          href={`/workspaces/${workspaceId}/job-assignments/${row.task_execution.job_assignment_id}`}
-                          variant="subtle"
-                          size="xs"
-                        >
-                          Open job
-                        </Button>
-                      ) : null}
-                      {row.integration_account ? (
-                        <Button
-                          component={Link}
-                          href={`/workspaces/${workspaceId}/integrations/${row.integration_account.id}`}
-                          variant="subtle"
-                          size="xs"
-                        >
-                          Open integration
-                        </Button>
-                      ) : null}
-                    </Group>
+                    {row.integration_account ? (
+                      <Button
+                        component={Link}
+                        href={`/workspaces/${workspaceId}/integrations/${row.integration_account.id}`}
+                        variant="subtle"
+                        size="xs"
+                        w="fit-content"
+                      >
+                        Open integration
+                      </Button>
+                    ) : null}
                   </Stack>
                 </Card>
               );

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from ninja import Router, Schema
 from ninja.errors import HttpError
@@ -61,6 +62,7 @@ class AgenticChatHistoryMessage(Schema):
     role: str
     content: str
     created: datetime
+    attachments: list[dict[str, Any]]
 
 
 class AgenticChatHistoryResponse(Schema):
@@ -85,6 +87,16 @@ def _message_display_text(message: Message) -> str:
     if message.content_structured is not None:
         return ""
     return ""
+
+
+def _message_attachments(message: Message) -> list[dict[str, Any]]:
+    structured = message.content_structured
+    if not isinstance(structured, dict):
+        return []
+    attachments = structured.get("attachments")
+    if not isinstance(attachments, list):
+        return []
+    return [a for a in attachments if isinstance(a, dict)]
 
 
 @router.get("/health", response={200: dict}, auth=[ApiKeyAuth(), django_auth])
@@ -152,6 +164,7 @@ def get_conversation_history(request, cyber_identity_id: uuid.UUID, limit: int =
             role=m.role,
             content=_message_display_text(m),
             created=m.created,
+            attachments=_message_attachments(m),
         )
         for m in rows
     ]

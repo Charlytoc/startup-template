@@ -71,7 +71,11 @@ class JobTaskProcessorAgent:
             seen_names.add(cfg.tool.name)
             tools.append(cfg)
 
-        dm_targets = collect_resolved_send_targets(job=job, conversation=conversation)
+        dm_targets = collect_resolved_send_targets(
+            job=job,
+            conversation=conversation,
+            actions=actions,
+        )
         if dm_targets:
             _add(
                 make_send_message_tool(
@@ -212,8 +216,14 @@ class JobTaskProcessorAgent:
         return None
 
     @staticmethod
-    def build_system_prompt(job: JobAssignment, *, conversation: Conversation | None = None) -> str:
+    def build_system_prompt(
+        job: JobAssignment,
+        *,
+        conversation: Conversation | None = None,
+        actions_override: list[JobAssignmentAction] | None = None,
+    ) -> str:
         cfg_model = job.get_config()
+        actions = actions_override if actions_override is not None else cfg_model.actions
         parts = [
             f"You are running the workspace job **{job.role_name}**.",
         ]
@@ -247,7 +257,11 @@ class JobTaskProcessorAgent:
                 "**Persona:** This job has no cyber identity in scope; act as a neutral workspace agent."
             )
 
-        dm_targets = collect_resolved_send_targets(job=job, conversation=conversation)
+        dm_targets = collect_resolved_send_targets(
+            job=job,
+            conversation=conversation,
+            actions=actions,
+        )
         if dm_targets:
             pub_lines = "\n".join(
                 f"- {p.target_index}: ({p.target_role}) [{p.integration_type.value}]"

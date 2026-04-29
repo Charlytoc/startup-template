@@ -15,6 +15,46 @@ export type ArtifactKind = (typeof ARTIFACT_KIND_OPTIONS)[number]["value"];
 
 export type WorkspaceArtifact = components["schemas"]["ArtifactOut"];
 
+export function artifactTitle(row: WorkspaceArtifact): string {
+  if (row.label.trim()) return row.label;
+  if (row.media?.display_name) return row.media.display_name;
+  if (typeof row.metadata.title === "string" && row.metadata.title.trim()) {
+    return row.metadata.title;
+  }
+  return `${row.kind} artifact`;
+}
+
+export function artifactTextBody(row: WorkspaceArtifact): string | null {
+  const text = row.metadata.text;
+  if (typeof text === "string" && text.trim()) return text.trim();
+  const summary = row.metadata.summary;
+  if (typeof summary === "string" && summary.trim()) return summary.trim();
+  return null;
+}
+
+export function isHtmlTextArtifact(row: WorkspaceArtifact): boolean {
+  const extension = row.metadata.extension;
+  return (
+    row.kind === "text" &&
+    typeof extension === "string" &&
+    ["html", "htm"].includes(extension.toLowerCase())
+  );
+}
+
+export function isImageArtifact(row: WorkspaceArtifact): boolean {
+  return Boolean(
+    row.media?.public_url &&
+      (row.kind === "image" || row.media.mime_type.startsWith("image/")),
+  );
+}
+
+export function formatArtifactBytes(value: number | null): string {
+  if (value == null) return "";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export type WorkspaceArtifactFilters = {
   identityId?: string | null;
   jobAssignmentId?: string | null;
@@ -78,4 +118,18 @@ export async function deleteWorkspaceArtifact(
     },
   );
   if (!response.ok) await parseError(response, "Failed to delete artifact");
+}
+
+export async function fetchWorkspaceArtifact(
+  token: string,
+  organizationId: string,
+  workspaceId: number,
+  artifactId: string,
+): Promise<WorkspaceArtifact> {
+  const response = await fetch(
+    `${API_BASE_URL}/workspaces/${workspaceId}/artifacts/${artifactId}/`,
+    { headers: authHeaders(token, organizationId) },
+  );
+  if (!response.ok) await parseError(response, "Failed to load artifact");
+  return response.json() as Promise<WorkspaceArtifact>;
 }

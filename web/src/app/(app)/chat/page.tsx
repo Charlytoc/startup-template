@@ -67,6 +67,7 @@ type AgenticChatHistoryMessage = {
   role: string;
   content: string;
   created: string;
+  attachments: ChatAttachment[];
 };
 
 type AgenticChatHistoryResponse = {
@@ -128,8 +129,24 @@ type RealtimeMessage = {
     role: "assistant";
     content: string;
     created: string;
+    attachments?: ChatAttachment[];
   };
   timestamp: string;
+};
+
+type ChatAttachment = {
+  type: "artifact";
+  artifact_id: string;
+  kind: string;
+  label: string;
+  text_preview?: string;
+  media?: {
+    id: string;
+    display_name: string;
+    mime_type: string;
+    byte_size: number | null;
+    public_url: string | null;
+  } | null;
 };
 
 type ChatEntry = {
@@ -137,6 +154,7 @@ type ChatEntry = {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  attachments: ChatAttachment[];
 };
 
 function ChatMessageTimestamp({ createdAt }: { createdAt: string }) {
@@ -147,6 +165,69 @@ function ChatMessageTimestamp({ createdAt }: { createdAt: string }) {
     <Text size="xs" c="dimmed">
       {label}
     </Text>
+  );
+}
+
+function ChatAttachments({ attachments }: { attachments: ChatAttachment[] }) {
+  if (!attachments.length) return null;
+  return (
+    <Stack gap="xs" mt={4}>
+      {attachments.map((attachment) => {
+        const media = attachment.media;
+        const title =
+          attachment.label ||
+          media?.display_name ||
+          `${attachment.kind} artifact`;
+        const isImage = Boolean(
+          media?.public_url && media.mime_type.startsWith("image/"),
+        );
+        return (
+          <Paper key={attachment.artifact_id} withBorder radius="md" p="xs">
+            <Stack gap={6}>
+              <Group justify="space-between" gap="xs" wrap="nowrap">
+                <Text size="xs" fw={600} lineClamp={1}>
+                  {title}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {attachment.kind}
+                </Text>
+              </Group>
+              {isImage ? (
+                <Box
+                  component="img"
+                  src={media!.public_url!}
+                  alt={title}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    maxHeight: 360,
+                    objectFit: "contain",
+                    borderRadius: 8,
+                  }}
+                />
+              ) : attachment.text_preview ? (
+                <Text size="xs" c="dimmed" lineClamp={4} style={{ whiteSpace: "pre-wrap" }}>
+                  {attachment.text_preview}
+                </Text>
+              ) : null}
+              {media?.public_url ? (
+                <Button
+                  component="a"
+                  href={media.public_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="xs"
+                  variant="light"
+                  w="fit-content"
+                >
+                  Open
+                </Button>
+              ) : null}
+            </Stack>
+          </Paper>
+        );
+      })}
+    </Stack>
   );
 }
 
@@ -263,6 +344,7 @@ export default function ChatPage() {
           role: "user",
           content: message,
           createdAt: new Date().toISOString(),
+        attachments: [],
         },
       ]);
       setWaiting(true);
@@ -317,6 +399,7 @@ export default function ChatPage() {
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content || "",
         createdAt: m.created,
+        attachments: (m.attachments ?? []) as ChatAttachment[],
       })),
     );
   }, [chatHistory]);
@@ -425,6 +508,7 @@ export default function ChatPage() {
           role: "assistant",
           content: payload.message.content,
           createdAt,
+          attachments: payload.message.attachments ?? [],
         },
       ]);
       setWaiting(false);
@@ -719,6 +803,7 @@ export default function ChatPage() {
                     <Text size="sm" c="white" style={{ whiteSpace: "pre-wrap" }}>
                       {m.content}
                     </Text>
+                    <ChatAttachments attachments={m.attachments} />
                   </Paper>
                   <ChatMessageTimestamp createdAt={m.createdAt} />
                 </Stack>
@@ -745,6 +830,7 @@ export default function ChatPage() {
                     <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
                       {m.content}
                     </Text>
+                    <ChatAttachments attachments={m.attachments} />
                   </Paper>
                   <ChatMessageTimestamp createdAt={m.createdAt} />
                 </Stack>

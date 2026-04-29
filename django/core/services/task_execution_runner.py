@@ -131,13 +131,18 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
     trigger_dict = inputs.trigger if isinstance(inputs.trigger, dict) else None
     trigger_type = _trigger_type(trigger_dict)
     is_event = _trigger_is_event(trigger_dict)
+    actions_override = inputs.actions if inputs.actions else None
 
     if trigger_type == "artifact_creator_completed":
         loop_messages = prior_exchange_messages(conversation)
         task_msg = ExchangeMessage(role="user", content=inputs.task_instructions)
         loop_messages = [*loop_messages, task_msg] if loop_messages else [task_msg]
         system_prompt = (
-            JobTaskProcessorAgent.build_system_prompt(job, conversation=conversation)
+            JobTaskProcessorAgent.build_system_prompt(
+                job,
+                conversation=conversation,
+                actions_override=actions_override,
+            )
             + "\n\nAn artifact creator task has finished in the background. Review the structured "
             "artifact data below and notify the user naturally through the appropriate send tool. "
             "Do not create new artifacts unless the user explicitly asks for changes."
@@ -147,7 +152,11 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         task_msg = ExchangeMessage(role="user", content=inputs.task_instructions)
         loop_messages = [*loop_messages, task_msg] if loop_messages else [task_msg]
         system_prompt = (
-            JobTaskProcessorAgent.build_system_prompt(job, conversation=conversation)
+            JobTaskProcessorAgent.build_system_prompt(
+                job,
+                conversation=conversation,
+                actions_override=actions_override,
+            )
             + "\n\nThis run is an artifact creator task. Create durable artifacts that satisfy "
             "the latest instructions. Prefer saving the useful output through the artifact tools; "
             "do not treat plain final text as the saved artifact."
@@ -156,7 +165,11 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         loop_messages = prior_exchange_messages(conversation)
         if not loop_messages:
             return _fail(task, "empty_conversation")
-        system_prompt = JobTaskProcessorAgent.build_system_prompt(job, conversation=conversation)
+        system_prompt = JobTaskProcessorAgent.build_system_prompt(
+            job,
+            conversation=conversation,
+            actions_override=actions_override,
+        )
     else:
         append_user_message(
             conversation,
@@ -164,13 +177,16 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             content_structured={"trigger": "task_execution", "task_execution_id": str(task.id)},
         )
         system_prompt = (
-            JobTaskProcessorAgent.build_system_prompt(job, conversation=conversation)
+            JobTaskProcessorAgent.build_system_prompt(
+                job,
+                conversation=conversation,
+                actions_override=actions_override,
+            )
             + "\n\nYou are executing a deferred task created earlier. Use the tools "
             "to complete the instructions below. When you are done, output a brief confirmation."
         )
         loop_messages = [ExchangeMessage(role="user", content=inputs.task_instructions)]
 
-    actions_override = inputs.actions if inputs.actions else None
     tools = JobTaskProcessorAgent.build_tools_for_conversation(
         job=job,
         conversation=conversation,
@@ -505,8 +521,9 @@ def _artifact_callback_instructions(
                 detail += f" Preview: {preview}"
             lines.append(detail)
         lines.append(
-            "Tell the user the artifact is ready in the same language and tone as the conversation. "
-            "If a URL is present, you may share it."
+            "Send one concise message in the same language and tone as the conversation. "
+            "Say the artifact is ready and pass every created artifact id in the `artifact_ids` "
+            "argument of `send_message`. Do not write artifact:// links in the message text."
         )
         return "\n".join(lines)
 

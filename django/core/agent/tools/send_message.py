@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
+from uuid import UUID
 
 from core.agent.base import AgentTool, AgentToolConfig
-from core.models import Conversation, IntegrationAccount
+from core.models import Artifact, Conversation, IntegrationAccount
 from core.schemas.send_target import ResolvedSendTarget, SendTargetProvider
 from core.services.conversations import append_assistant_message
 from core.services.instagram_service import get_access_token, get_ig_user_id, instagram_send_message
@@ -43,18 +45,76 @@ def _append_if_same_thread(
         )
 
 
+def _artifact_attachment_payload(artifact: Artifact) -> dict[str, Any]:
+    metadata = artifact.metadata or {}
+    payload: dict[str, Any] = {
+        "type": "artifact",
+        "artifact_id": str(artifact.id),
+        "kind": artifact.kind,
+        "label": artifact.label or "",
+        "created": artifact.created.isoformat() if artifact.created else "",
+        "media": None,
+        "text_preview": "",
+    }
+    if artifact.kind == Artifact.Kind.TEXT:
+        payload["text_preview"] = str(metadata.get("text") or "")[:500]
+    if artifact.media_id and artifact.media is not None:
+        payload["media"] = {
+            "id": str(artifact.media.id),
+            "display_name": artifact.media.display_name,
+            "mime_type": artifact.media.mime_type or "",
+            "byte_size": artifact.media.byte_size,
+            "public_url": artifact.media.resolve_public_url(),
+        }
+    return payload
+
+
+def _resolve_artifact_attachments(
+    *,
+    conversation: Conversation | None,
+    artifact_ids: list[str] | None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    if not artifact_ids:
+        return [], None
+    if conversation is None:
+        return [], "artifact_ids require an active conversation."
+
+    parsed: list[UUID] = []
+    for raw in artifact_ids:
+        try:
+            parsed.append(UUID(str(raw)))
+        except (TypeError, ValueError):
+            return [], f"Invalid artifact id: {raw!r}."
+
+    rows = list(
+        Artifact.objects.filter(id__in=parsed, workspace=conversation.workspace)
+        .select_related("media")
+        .order_by("created")
+    )
+    by_id = {row.id: row for row in rows}
+    missing = [str(aid) for aid in parsed if aid not in by_id]
+    if missing:
+        return [], f"Artifacts not found in this workspace: {', '.join(missing)}."
+    return [_artifact_attachment_payload(by_id[aid]) for aid in parsed], None
+
+
 def _send_web_chat_message(
     *,
     conversation: Conversation | None,
     target: ResolvedSendTarget,
     text: str,
+    content_structured: dict[str, Any] | None,
 ) -> str:
     if conversation is None:
         return "Error: web chat conversation not available."
     if target.web_user_id is None:
         return "Error: web chat target is missing user id."
     try:
-        msg = append_assistant_message(conversation, content_text=text)
+        msg = append_assistant_message(
+            conversation,
+            content_text=text,
+            content_structured=content_structured,
+        )
     except Exception:
         logger.exception(
             "append_assistant_message failed conversation=%s user=%s",
@@ -74,6 +134,7 @@ def _send_web_chat_message(
                     "role": "assistant",
                     "content": text,
                     "created": created_iso,
+                    "attachments": (content_structured or {}).get("attachments") or [],
                 },
                 "timestamp": created_iso,
             },
@@ -117,6 +178,15 @@ def make_send_message_tool(
                     "type": "string",
                     "description": "Full text to send to that target.",
                 },
+                "artifact_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional artifact ids to attach to this message. Use this when notifying "
+                        "the user about generated images, text artifacts, or other durable outputs."
+                    ),
+                    "default": [],
+                },
             },
             "required": ["target_index", "message"],
             "additionalProperties": False,
@@ -125,10 +195,19 @@ def make_send_message_tool(
 
     by_index: dict[int, ResolvedSendTarget] = {t.target_index: t for t in targets}
 
-    def execute(target_index: int, message: str) -> str:
+    def execute(target_index: int, message: str, artifact_ids: list[str] | None = None) -> str:
         text = (message or "").strip()
         if not text:
             return "Error: message must be non-empty."
+        attachments, attachment_error = _resolve_artifact_attachments(
+            conversation=conversation_for_append,
+            artifact_ids=artifact_ids,
+        )
+        if attachment_error is not None:
+            return f"Error: {attachment_error}"
+        content_structured: dict[str, Any] | None = (
+            {"attachments": attachments} if attachments else None
+        )
         idx = int(target_index)
         target = by_index.get(idx)
         if target is None:
@@ -139,6 +218,7 @@ def make_send_message_tool(
                 conversation=conversation_for_append,
                 target=target,
                 text=text,
+                content_structured=content_structured,
             )
 
         if target.integration_account_id is None:
@@ -159,7 +239,10 @@ def make_send_message_tool(
                 conversation_for_append=conversation_for_append,
                 target=target,
                 text=text,
-                content_structured={"telegram_sent": sent},
+                content_structured={
+                    **(content_structured or {}),
+                    "telegram_sent": sent,
+                },
             )
             return "Message sent successfully."
 
@@ -176,7 +259,10 @@ def make_send_message_tool(
                 conversation_for_append=conversation_for_append,
                 target=target,
                 text=text,
-                content_structured={"instagram_sent": sent},
+                content_structured={
+                    **(content_structured or {}),
+                    "instagram_sent": sent,
+                },
             )
             return "Message sent successfully."
 

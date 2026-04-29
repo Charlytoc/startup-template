@@ -635,6 +635,10 @@ export interface components {
              * Format: date-time
              */
             created: string;
+            /** Attachments */
+            attachments: {
+                [key: string]: unknown;
+            }[];
         };
         /** AgenticChatHistoryResponse */
         AgenticChatHistoryResponse: {

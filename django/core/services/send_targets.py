@@ -13,6 +13,7 @@ from core.integrations.actionables import (
 )
 from core.models import Conversation, IntegrationAccount, JobAssignment
 from core.schemas.integration_account import SenderApprovalStatus
+from core.schemas.job_assignment import JobAssignmentAction
 from core.schemas.send_target import (
     ResolvedSendTarget,
     SendTargetProvider,
@@ -36,6 +37,7 @@ def resolve_send_target(
     job: JobAssignment,
     integration_account: IntegrationAccount,
     external_thread_id: str,
+    actions: list[JobAssignmentAction] | None = None,
 ) -> SendTargetResolution | None:
     """Return a validated send target if the job may send to this integration + thread.
 
@@ -47,7 +49,7 @@ def resolve_send_target(
     if not tid:
         return None
 
-    cfg = job.get_config()
+    active_actions = actions if actions is not None else job.get_config().actions
     provider = integration_account.provider
 
     if provider == IntegrationAccount.Provider.TELEGRAM:
@@ -61,7 +63,7 @@ def resolve_send_target(
 
     if not any(
         a.actionable_slug == slug and a.integration_account_id == integration_account.id
-        for a in cfg.actions
+        for a in active_actions
     ):
         return None
 
@@ -86,14 +88,15 @@ def collect_resolved_send_targets(
     *,
     job: JobAssignment,
     conversation: Conversation | None,
+    actions: list[JobAssignmentAction] | None = None,
 ) -> list[ResolvedSendTarget]:
     """Build the indexed target list for this run from explicit seeds (not a full sender scan)."""
     seeds: list[SendTargetSeed] = []
-    cfg = job.get_config()
+    active_actions = actions if actions is not None else job.get_config().actions
     if (
         conversation is not None
         and conversation.origin == Conversation.Origin.WEB
-        and any(a.actionable_slug == SYSTEM_SEND_MESSAGE.slug for a in cfg.actions)
+        and any(a.actionable_slug == SYSTEM_SEND_MESSAGE.slug for a in active_actions)
     ):
         web_user_id = conversation.get_config().web_user_id
         if web_user_id is not None:
@@ -131,6 +134,7 @@ def collect_resolved_send_targets(
             job=job,
             integration_account=seed.integration_account,
             external_thread_id=seed.external_thread_id,
+            actions=active_actions,
         )
         if res is None:
             logger.info(
