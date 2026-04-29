@@ -168,8 +168,16 @@ function ChatMessageTimestamp({ createdAt }: { createdAt: string }) {
   );
 }
 
-function ChatAttachments({ attachments }: { attachments: ChatAttachment[] }) {
+function ChatAttachments({
+  attachments,
+  workspaceId,
+}: {
+  attachments: ChatAttachment[];
+  workspaceId: number | null;
+}) {
   if (!attachments.length) return null;
+  const canOpen =
+    workspaceId != null && !Number.isNaN(workspaceId) && workspaceId > 0;
   return (
     <Stack gap="xs" mt={4}>
       {attachments.map((attachment) => {
@@ -210,12 +218,10 @@ function ChatAttachments({ attachments }: { attachments: ChatAttachment[] }) {
                   {attachment.text_preview}
                 </Text>
               ) : null}
-              {media?.public_url ? (
+              {canOpen ? (
                 <Button
-                  component="a"
-                  href={media.public_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  component={Link}
+                  href={`/workspaces/${workspaceId}/artifacts/${attachment.artifact_id}`}
                   size="xs"
                   variant="light"
                   w="fit-content"
@@ -264,6 +270,14 @@ export default function ChatPage() {
     defaultValue: null,
     getInitialValueInEffect: true,
   });
+  const chatArtifactWorkspaceId = useMemo(() => {
+    const raw = searchParams.get("workspace");
+    if (raw) {
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isNaN(n) && n > 0) return n;
+    }
+    return selectedWorkspaceId;
+  }, [searchParams, selectedWorkspaceId]);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [waiting, setWaiting] = useState(false);
@@ -671,7 +685,9 @@ export default function ChatPage() {
                     variant="light"
                     justify="space-between"
                     rightSection={<Badge variant="outline">{row.workspace_name}</Badge>}
-                    onClick={() => router.push(`/chat?identity=${row.id}`)}
+                    onClick={() =>
+                      router.push(`/chat?identity=${row.id}&workspace=${row.workspace_id}`)
+                    }
                   >
                     {row.display_name}
                   </Button>
@@ -803,7 +819,10 @@ export default function ChatPage() {
                     <Text size="sm" c="white" style={{ whiteSpace: "pre-wrap" }}>
                       {m.content}
                     </Text>
-                    <ChatAttachments attachments={m.attachments} />
+                    <ChatAttachments
+                      attachments={m.attachments}
+                      workspaceId={chatArtifactWorkspaceId}
+                    />
                   </Paper>
                   <ChatMessageTimestamp createdAt={m.createdAt} />
                 </Stack>
@@ -830,7 +849,10 @@ export default function ChatPage() {
                     <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
                       {m.content}
                     </Text>
-                    <ChatAttachments attachments={m.attachments} />
+                    <ChatAttachments
+                      attachments={m.attachments}
+                      workspaceId={chatArtifactWorkspaceId}
+                    />
                   </Paper>
                   <ChatMessageTimestamp createdAt={m.createdAt} />
                 </Stack>

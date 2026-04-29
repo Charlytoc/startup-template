@@ -211,7 +211,7 @@ export default function WorkspaceCyberIdentitiesPage() {
       enableWebChatForIdentity(token!, orgId!, workspaceId, row.id),
     onSuccess: async (_data, row) => {
       await invalidate();
-      router.push(`/chat?identity=${row.id}`);
+      router.push(`/chat?identity=${row.id}&workspace=${workspaceId}`);
     },
     onError: (err: Error) => {
       alert(`Could not enable web chat: ${err.message}`);
@@ -376,7 +376,7 @@ export default function WorkspaceCyberIdentitiesPage() {
                             size="xs"
                             variant="subtle"
                             component={Link}
-                            href={`/chat?identity=${row.id}`}
+                            href={`/chat?identity=${row.id}&workspace=${workspaceId}`}
                             disabled={!row.is_active}
                             title={row.is_active ? "Chat as this identity" : "Activate first"}
                           >

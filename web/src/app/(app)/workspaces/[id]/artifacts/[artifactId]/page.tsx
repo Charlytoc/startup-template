@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import {
   Box,
   Button,
   Center,
+  Collapse,
   Container,
   Group,
   Loader,
@@ -19,7 +20,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { useLocalStorage } from "@mantine/hooks";
+import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
   SELECTED_ORG_ID_KEY,
   SELECTED_WORKSPACE_ID_KEY,
@@ -76,6 +77,8 @@ export default function WorkspaceArtifactDetailPage() {
 
   const [artifactToDelete, setArtifactToDelete] = useState<WorkspaceArtifact | null>(null);
   const [copied, setCopied] = useState(false);
+  const htmlPreviewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [metadataOpened, { toggle: toggleMetadata, close: closeMetadata }] = useDisclosure(false);
 
   useEffect(() => {
     const { user: stored } = readStoredAuth();
@@ -135,8 +138,39 @@ export default function WorkspaceArtifactDetailPage() {
   const workspaceMismatch =
     selectedWorkspaceId != null && selectedWorkspaceId !== workspaceId && !Number.isNaN(workspaceId);
 
+  const body = artifact ? artifactTextBody(artifact) : null;
+  const htmlArtifact = artifact ? isHtmlTextArtifact(artifact) : false;
+  const imageArtifact = artifact ? isImageArtifact(artifact) : false;
+
+  useEffect(() => {
+    if (!htmlArtifact || !body) return;
+    const el = htmlPreviewIframeRef.current;
+    if (!el) return;
+    const applyHeight = () => {
+      try {
+        const doc = el.contentDocument;
+        const root = doc?.documentElement;
+        const h = Math.max(
+          root?.scrollHeight ?? 0,
+          doc?.body?.scrollHeight ?? 0,
+          root?.offsetHeight ?? 0,
+          doc?.body?.offsetHeight ?? 0,
+        );
+        if (h > 0) el.style.height = `${h}px`;
+      } catch {
+        // Sandboxed or cross-origin; leave default min-height.
+      }
+    };
+    el.addEventListener("load", applyHeight);
+    applyHeight();
+    return () => el.removeEventListener("load", applyHeight);
+  }, [htmlArtifact, body, artifactId]);
+
+  useEffect(() => {
+    closeMetadata();
+  }, [artifactId, closeMetadata]);
+
   async function copyBody() {
-    const body = artifact ? artifactTextBody(artifact) : null;
     if (!body) return;
     await navigator.clipboard.writeText(body);
     setCopied(true);
@@ -197,10 +231,6 @@ export default function WorkspaceArtifactDetailPage() {
       </Container>
     );
   }
-
-  const body = artifact ? artifactTextBody(artifact) : null;
-  const htmlArtifact = artifact ? isHtmlTextArtifact(artifact) : false;
-  const imageArtifact = artifact ? isImageArtifact(artifact) : false;
 
   return (
     <Container size="lg" py="xl" style={{ flex: 1 }}>
@@ -333,9 +363,8 @@ export default function WorkspaceArtifactDetailPage() {
                   alt={artifactTitle(artifact)}
                   style={{
                     display: "block",
-                    width: "100%",
-                    maxHeight: "min(80vh, 900px)",
-                    objectFit: "contain",
+                    maxWidth: "100%",
+                    height: "auto",
                     borderRadius: 8,
                   }}
                 />
@@ -348,13 +377,15 @@ export default function WorkspaceArtifactDetailPage() {
                   Preview
                 </Title>
                 <Box
+                  ref={htmlPreviewIframeRef}
                   component="iframe"
                   srcDoc={body}
-                  sandbox=""
+                  sandbox="allow-same-origin"
                   title={artifactTitle(artifact)}
                   style={{
+                    display: "block",
                     width: "100%",
-                    height: "min(80vh, 900px)",
+                    minHeight: 240,
                     border: "1px solid var(--mantine-color-default-border)",
                     borderRadius: 8,
                     background: "white",
@@ -384,21 +415,24 @@ export default function WorkspaceArtifactDetailPage() {
 
             {Object.keys(artifact.metadata || {}).length > 0 ? (
               <Paper withBorder radius="md" p="md">
-                <Title order={5} mb="sm">
-                  Metadata
-                </Title>
-                <Text
-                  component="pre"
-                  size="xs"
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    margin: 0,
-                    fontFamily: "var(--mantine-font-monospace)",
-                  }}
-                >
-                  {JSON.stringify(artifact.metadata, null, 2)}
-                </Text>
+                <Button variant="subtle" size="xs" px={0} onClick={toggleMetadata}>
+                  {metadataOpened ? "Hide metadata" : "Show metadata"}
+                </Button>
+                <Collapse in={metadataOpened}>
+                  <Text
+                    component="pre"
+                    size="xs"
+                    mt="sm"
+                    style={{
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      margin: 0,
+                      fontFamily: "var(--mantine-font-monospace)",
+                    }}
+                  >
+                    {JSON.stringify(artifact.metadata, null, 2)}
+                  </Text>
+                </Collapse>
               </Paper>
             ) : null}
           </Stack>
