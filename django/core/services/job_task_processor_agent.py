@@ -6,6 +6,7 @@ import uuid
 
 from core.agent.base import AgentToolConfig
 from core.agent.tools.call_artifact_creator import make_call_artifact_creator_tool
+from core.agent.tools.create_image_artifact import make_create_image_artifact_tool
 from core.agent.tools.create_recurring_job import make_create_recurring_job_tool
 from core.agent.tools.create_text_artifact import make_create_text_artifact_tool
 from core.agent.tools.schedule_one_off_task import make_schedule_one_off_task_tool
@@ -13,6 +14,7 @@ from core.agent.tools.send_chat_message import make_send_chat_message_tool
 from core.agent.tools.send_message import make_send_message_tool
 from core.integrations.actionables import (
     ARTIFACTS_CALL_CREATOR,
+    ARTIFACTS_CREATE_IMAGE,
     ARTIFACTS_CREATE_TEXT,
     SYSTEM_SEND_CHAT_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
@@ -100,6 +102,8 @@ class JobTaskProcessorAgent:
                 _add(make_call_artifact_creator_tool(job=job, channel=channel))
             elif slug == ARTIFACTS_CREATE_TEXT.slug and task_execution is not None:
                 _add(make_create_text_artifact_tool(task_execution=task_execution))
+            elif slug == ARTIFACTS_CREATE_IMAGE.slug and task_execution is not None:
+                _add(make_create_image_artifact_tool(task_execution=task_execution))
         return tools
 
     @staticmethod

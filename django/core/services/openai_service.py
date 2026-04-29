@@ -14,6 +14,8 @@ from openai.types.responses.response import Response
 
 logger = logging.getLogger(__name__)
 
+IMAGE_GENERATION_MODEL = "gpt-image-2"
+
 
 class OpenAIService:
     """Service for OpenAI API interactions"""
@@ -190,6 +192,77 @@ class OpenAIService:
         except Exception as e:
             logger.error(f"Error generating images: {e}")
             return None
+
+    def generate_image_artifacts(
+        self,
+        *,
+        prompt: str,
+        size: str = "1024x1024",
+        quality: str = "auto",
+        background: str = "auto",
+        output_format: str = "png",
+    ) -> dict[str, Any]:
+        """Generate a single image and return decoded bytes plus response metadata."""
+        if not self.client:
+            raise RuntimeError("OpenAI client not available for image generation")
+
+        resp = self.client.images.generate(
+            model=IMAGE_GENERATION_MODEL,
+            prompt=prompt,
+            n=1,
+            size=size,
+            quality=quality,
+            background=background,
+            output_format=output_format,
+        )
+        data = getattr(resp, "data", None)
+        if not data and isinstance(resp, dict):
+            data = resp.get("data")
+        if not data:
+            raise RuntimeError("OpenAI image generation returned no image data")
+
+        item = data[0]
+        b64 = (
+            item.get("b64_json")
+            if isinstance(item, dict)
+            else getattr(item, "b64_json", None)
+        )
+        url = item.get("url") if isinstance(item, dict) else getattr(item, "url", None)
+        if b64:
+            image_bytes = base64.b64decode(b64)
+        elif url:
+            image_resp = requests.get(url, timeout=30)
+            image_resp.raise_for_status()
+            image_bytes = image_resp.content
+        else:
+            raise RuntimeError("OpenAI image generation returned neither b64_json nor url")
+
+        revised_prompt = (
+            item.get("revised_prompt")
+            if isinstance(item, dict)
+            else getattr(item, "revised_prompt", None)
+        )
+        usage = getattr(resp, "usage", None)
+        if hasattr(usage, "model_dump"):
+            usage = usage.model_dump(mode="json")
+
+        def _response_value(key: str, default: Any = None) -> Any:
+            if isinstance(resp, dict):
+                return resp.get(key, default)
+            return getattr(resp, key, default)
+
+        return {
+            "bytes": image_bytes,
+            "model": IMAGE_GENERATION_MODEL,
+            "prompt": prompt,
+            "revised_prompt": revised_prompt,
+            "size": _response_value("size", size) or size,
+            "quality": _response_value("quality", quality) or quality,
+            "background": _response_value("background", background) or background,
+            "output_format": _response_value("output_format", output_format) or output_format,
+            "created": _response_value("created"),
+            "usage": usage if isinstance(usage, dict) else None,
+        }
 
     def generate_profile_avatar(self, user_description: str, output_dir: Optional[str] = None) -> Optional[str]:
         """

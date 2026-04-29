@@ -79,6 +79,13 @@ ARTIFACTS_CREATE_TEXT = Actionable(
     description="Persist a text artifact on the current task execution.",
 )
 
+ARTIFACTS_CREATE_IMAGE = Actionable(
+    slug="artifacts.create_image",
+    provider="system",
+    name="Create image artifact",
+    description="Generate an image with OpenAI and persist it as a media-backed artifact.",
+)
+
 
 ACTIONABLES: dict[str, Actionable] = {
     a.slug: a
@@ -90,6 +97,7 @@ ACTIONABLES: dict[str, Actionable] = {
         SYSTEM_SEND_CHAT_MESSAGE,
         ARTIFACTS_CALL_CREATOR,
         ARTIFACTS_CREATE_TEXT,
+        ARTIFACTS_CREATE_IMAGE,
     )
 }
 

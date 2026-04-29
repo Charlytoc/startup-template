@@ -69,7 +69,7 @@ class Artifact(TimeStampedModel):
         default=dict,
         blank=True,
         help_text=(
-            "Per-kind metadata such as text, format, provider ids, prompts, dimensions, "
+            "Per-kind metadata such as text, extension, provider ids, prompts, dimensions, "
             "or publish timestamps."
         ),
     )

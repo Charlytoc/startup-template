@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -81,3 +83,16 @@ class CreateTextArtifactArgs(BaseModel):
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$",
         description="File-style extension for the text artifact, e.g. txt, md, html, json.",
     )
+
+
+class CreateImageArtifactArgs(BaseModel):
+    """Arguments for the ``create_image_artifact`` agent tool."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str = Field(..., min_length=1, max_length=32000)
+    label: str = Field(default="", max_length=200)
+    size: Literal["auto", "1024x1024", "1536x1024", "1024x1536"] = "1024x1024"
+    quality: Literal["auto", "low", "medium", "high"] = "auto"
+    background: Literal["auto", "transparent", "opaque"] = "auto"
+    output_format: Literal["png", "jpeg", "webp"] = "png"

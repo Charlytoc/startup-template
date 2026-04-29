@@ -6,6 +6,7 @@ import mimetypes
 import re
 import uuid
 from pathlib import Path
+from urllib.parse import urljoin
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -44,7 +45,7 @@ def media_object_upload_to(instance: "MediaObject", filename: str) -> str:
     path = Path(filename)
     ext = (path.suffix or "").lower()[:20]
     safe = path.stem[:80] if path.stem else "file"
-    return f"media/workspaces/{wid}/{timezone.now():%Y/%m}/{uuid.uuid4().hex}_{safe}{ext}"
+    return f"workspaces/{wid}/{timezone.now():%Y/%m}/{uuid.uuid4().hex}_{safe}{ext}"
 
 
 class MediaObject(TimeStampedModel):
@@ -158,6 +159,16 @@ class MediaObject(TimeStampedModel):
 
     def resolve_public_url(self) -> str | None:
         """Return a browser-usable URL when bytes are served via ``FileField`` (local or default storage URL)."""
-        if self.file:
-            return self.file.url
-        return None
+        if not self.file:
+            return None
+        url = self.file.url
+        if url.startswith(("http://", "https://")):
+            return url
+        base = str(
+            getattr(settings, "MEDIA_PUBLIC_URL_BASE", "")
+            or getattr(settings, "SITE_URL", "")
+            or ""
+        ).rstrip("/")
+        if not base:
+            return url
+        return urljoin(f"{base}/", url.lstrip("/"))
