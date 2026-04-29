@@ -34,7 +34,8 @@ def make_call_artifact_creator_tool(
             "Create a child artifact-creator task. Use this when the user asks to create durable "
             "content such as a note, caption, draft, image, or future media asset. The child task "
             "starts with text and image artifact tools enabled; future publishing tools can be "
-            "added to the child action set."
+            "added to the child action set. After calling this, tell the user it may take a bit; "
+            "the parent job will be called again when the artifact creator finishes."
         ),
         parameters={
             "type": "object",
@@ -124,7 +125,10 @@ def make_call_artifact_creator_tool(
                 status=TaskExecution.Status.PENDING,
             ).update(status=TaskExecution.Status.QUEUED)
             enqueue_task_execution(task.id)
-            return f"Started artifact creator task {task.id}."
+            return (
+                f"Started artifact creator task {task.id}. It will call this parent job again "
+                "when it finishes so the user can be notified."
+            )
         return (
             f"Scheduled artifact creator task {task.id} to run at {scheduled_to.isoformat()} "
             f"(in {args.in_minutes} minutes)."
