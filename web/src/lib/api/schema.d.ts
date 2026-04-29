@@ -396,7 +396,8 @@ export interface paths {
         get: operations["core_routers_workspace_artifacts_get_workspace_artifact"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Workspace Artifact */
+        delete: operations["core_routers_workspace_artifacts_delete_workspace_artifact"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2423,6 +2424,54 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ArtifactOut"];
                 };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspace_artifacts_delete_workspace_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Unauthorized */
             401: {

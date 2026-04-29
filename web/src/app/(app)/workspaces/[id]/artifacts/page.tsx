@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -13,6 +14,7 @@ import {
   Container,
   Group,
   Loader,
+  Modal,
   Paper,
   Select,
   SimpleGrid,
@@ -35,6 +37,7 @@ import { fetchWorkspaceIntegrations } from "@/lib/workspace-integrations";
 import { fetchJobAssignments } from "@/lib/workspace-job-assignments";
 import {
   ARTIFACT_KIND_OPTIONS,
+  deleteWorkspaceArtifact,
   fetchWorkspaceArtifacts,
   type ArtifactKind,
   type WorkspaceArtifact,
@@ -70,6 +73,7 @@ function formatBytes(value: number | null): string {
 }
 
 export default function WorkspaceArtifactsPage() {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const params = useParams();
   const workspaceId = parseWorkspaceId(params.id);
@@ -99,6 +103,7 @@ export default function WorkspaceArtifactsPage() {
   const [jobAssignmentId, setJobAssignmentId] = useState<string | null>(null);
   const [integrationAccountId, setIntegrationAccountId] = useState<string | null>(null);
   const [kind, setKind] = useState<ArtifactKind | null>(null);
+  const [artifactToDelete, setArtifactToDelete] = useState<WorkspaceArtifact | null>(null);
 
   useEffect(() => {
     const { user: stored } = readStoredAuth();
@@ -171,6 +176,28 @@ export default function WorkspaceArtifactsPage() {
       }),
     enabled: baseEnabled,
     staleTime: 10_000,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (row: WorkspaceArtifact) => {
+      if (!token || orgId == null) throw new Error("Not signed in.");
+      await deleteWorkspaceArtifact(token, orgId, workspaceId, row.id);
+    },
+    onSuccess: () => {
+      setArtifactToDelete(null);
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-artifacts",
+          token,
+          orgId,
+          workspaceId,
+          identityId,
+          jobAssignmentId,
+          integrationAccountId,
+          kind,
+        ],
+      });
+    },
   });
 
   const workspaceMismatch =
@@ -380,8 +407,8 @@ export default function WorkspaceArtifactsPage() {
               return (
                 <Card key={row.id} withBorder radius="md" p="lg">
                   <Stack gap="sm">
-                    <Group justify="space-between" align="flex-start" gap="xs">
-                      <div>
+                    <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
+                      <div style={{ minWidth: 0 }}>
                         <Group gap="xs" mb={4}>
                           <Badge variant="light">{row.kind}</Badge>
                           {row.task_execution?.status ? (
@@ -395,6 +422,16 @@ export default function WorkspaceArtifactsPage() {
                           {new Date(row.created).toLocaleString()}
                         </Text>
                       </div>
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label="Delete artifact"
+                        title="Delete"
+                        onClick={() => setArtifactToDelete(row)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        ✕
+                      </ActionIcon>
                     </Group>
 
                     {preview ? (
@@ -476,6 +513,52 @@ export default function WorkspaceArtifactsPage() {
             })}
           </SimpleGrid>
         )}
+
+        <Modal
+          opened={artifactToDelete != null}
+          onClose={() => {
+            if (!deleteMutation.isPending) setArtifactToDelete(null);
+          }}
+          title="Delete artifact"
+          centered
+        >
+          <Stack gap="md">
+            <Text size="sm">
+              {artifactToDelete
+                ? `Remove “${artifactTitle(artifactToDelete)}” and any linked media files from storage.`
+                : null}
+            </Text>
+            {artifactToDelete?.task_execution ? (
+              <Alert color="orange" title="Task run will be removed">
+                This artifact is tied to a task execution. Deleting it removes that entire run and every
+                other artifact produced in the same run.
+              </Alert>
+            ) : null}
+            {deleteMutation.isError ? (
+              <Alert color="red" title="Could not delete">
+                {(deleteMutation.error as Error).message}
+              </Alert>
+            ) : null}
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="default"
+                onClick={() => setArtifactToDelete(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                loading={deleteMutation.isPending}
+                onClick={() => {
+                  if (artifactToDelete) deleteMutation.mutate(artifactToDelete);
+                }}
+              >
+                Delete
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Stack>
     </Container>
   );

@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime
 
+from django.db import transaction
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.security import django_auth
 
-from core.models import Artifact, Workspace
+from core.models import Artifact, MediaObject, Workspace
 from core.routers.workspaces import _workspace_for_member
 from core.services.auth import ApiKeyAuth
 from core.utils.schemas import ErrorResponseSchema
@@ -105,6 +106,31 @@ def _artifact_response(row: Artifact) -> ArtifactOut:
     )
 
 
+def _delete_artifact_cascade(artifact: Artifact, *, workspace: Workspace) -> None:
+    """Deletes the row, linked task (and its artifacts) when present, then media rows no longer referenced."""
+    task = artifact.task_execution
+    if task is not None:
+        media_ids = set(
+            Artifact.objects.filter(task_execution_id=task.pk, workspace=workspace)
+            .exclude(media_id=None)
+            .values_list("media_id", flat=True)
+        )
+        task.delete()
+    else:
+        media_ids = {artifact.media_id} if artifact.media_id else set()
+        artifact.delete()
+
+    for mid in media_ids:
+        if Artifact.objects.filter(media_id=mid).exists():
+            continue
+        mobj = MediaObject.objects.filter(pk=mid, workspace=workspace).first()
+        if mobj is None:
+            continue
+        if mobj.file:
+            mobj.file.delete(save=False)
+        mobj.delete()
+
+
 def _artifact_queryset(workspace: Workspace):
     return (
         Artifact.objects.filter(workspace=workspace)
@@ -173,3 +199,27 @@ def get_workspace_artifact(request, workspace_id: int, artifact_id: uuid.UUID):
     if row is None:
         raise HttpError(404, "Artifact not found.")
     return 200, _artifact_response(row)
+
+
+@router.delete(
+    "/{workspace_id}/artifacts/{artifact_id}/",
+    response={
+        204: None,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+    },
+    auth=[ApiKeyAuth(), django_auth],
+)
+def delete_workspace_artifact(request, workspace_id: int, artifact_id: uuid.UUID):
+    workspace = _workspace_for_member(request, workspace_id)
+    with transaction.atomic():
+        row = (
+            Artifact.objects.select_for_update()
+            .filter(workspace=workspace, id=artifact_id)
+            .first()
+        )
+        if row is None:
+            raise HttpError(404, "Artifact not found.")
+        _delete_artifact_cascade(row, workspace=workspace)
+    return 204, None

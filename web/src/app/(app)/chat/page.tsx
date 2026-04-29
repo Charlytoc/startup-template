@@ -136,7 +136,19 @@ type ChatEntry = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: string;
 };
+
+function ChatMessageTimestamp({ createdAt }: { createdAt: string }) {
+  const d = new Date(createdAt);
+  const label = Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
+  if (!label) return null;
+  return (
+    <Text size="xs" c="dimmed">
+      {label}
+    </Text>
+  );
+}
 
 const REALTIME_URL = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:3001";
 
@@ -244,7 +256,15 @@ export default function ChatPage() {
       return data as AgenticChatMessageResponse;
     },
     onMutate: ({ message }) => {
-      setMessages((prev) => [...prev, { id: `${Date.now()}-user`, role: "user", content: message }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-user`,
+          role: "user",
+          content: message,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
       setWaiting(true);
     },
     onSuccess: (_data, variables) => {
@@ -296,6 +316,7 @@ export default function ChatPage() {
         id: m.id,
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content || "",
+        createdAt: m.created,
       })),
     );
   }, [chatHistory]);
@@ -395,12 +416,15 @@ export default function ChatPage() {
       setStatus(`Joined ${data.room}`);
     });
     socket.on("agentic-chat-message", (payload: RealtimeMessage) => {
+      const createdAt =
+        payload.message.created || payload.timestamp || new Date().toISOString();
       setMessages((prev) => [
         ...prev,
         {
           id: `${Date.now()}-assistant`,
           role: "assistant",
           content: payload.message.content,
+          createdAt,
         },
       ]);
       setWaiting(false);
@@ -682,7 +706,7 @@ export default function ChatPage() {
           {messages.map((m) =>
             m.role === "user" ? (
               <Group key={m.id} justify="flex-end" align="flex-end" gap="xs">
-                <Box maw="75%">
+                <Stack gap={4} align="flex-end" maw="75%">
                   <Paper
                     px="md"
                     py="sm"
@@ -696,7 +720,8 @@ export default function ChatPage() {
                       {m.content}
                     </Text>
                   </Paper>
-                </Box>
+                  <ChatMessageTimestamp createdAt={m.createdAt} />
+                </Stack>
                 <Avatar color="blue" radius="xl" size="sm">
                   {userInitial}
                 </Avatar>
@@ -706,7 +731,7 @@ export default function ChatPage() {
                 <Avatar color="violet" radius="xl" size="sm">
                   AI
                 </Avatar>
-                <Box maw="75%">
+                <Stack gap={4} align="flex-start" maw="75%">
                   <Paper
                     px="md"
                     py="sm"
@@ -721,7 +746,8 @@ export default function ChatPage() {
                       {m.content}
                     </Text>
                   </Paper>
-                </Box>
+                  <ChatMessageTimestamp createdAt={m.createdAt} />
+                </Stack>
               </Group>
             )
           )}
