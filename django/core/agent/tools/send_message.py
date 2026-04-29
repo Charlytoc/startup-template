@@ -1,4 +1,4 @@
-"""Tool: send a Telegram or Instagram text message to a pre-resolved indexed target."""
+"""Tool: send a user-visible message to a pre-resolved indexed target."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from core.models import Conversation, IntegrationAccount
 from core.schemas.send_target import ResolvedSendTarget, SendTargetProvider
 from core.services.conversations import append_assistant_message
 from core.services.instagram_service import get_access_token, get_ig_user_id, instagram_send_message
+from core.services.redis_publisher import publish_to_bridge
 from core.services.telegram_bot import get_bot_token, telegram_send_message
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,50 @@ def _append_if_same_thread(
             conversation_for_append.id,
             target.target_index,
         )
+
+
+def _send_web_chat_message(
+    *,
+    conversation: Conversation | None,
+    target: ResolvedSendTarget,
+    text: str,
+) -> str:
+    if conversation is None:
+        return "Error: web chat conversation not available."
+    if target.web_user_id is None:
+        return "Error: web chat target is missing user id."
+    try:
+        msg = append_assistant_message(conversation, content_text=text)
+    except Exception:
+        logger.exception(
+            "append_assistant_message failed conversation=%s user=%s",
+            conversation.id,
+            target.web_user_id,
+        )
+        return "Error: failed to persist message."
+    try:
+        created_iso = msg.created.isoformat() if msg.created else ""
+        publish_to_bridge(
+            listener=f"user-{target.web_user_id}",
+            event="agentic-chat-message",
+            data={
+                "conversation_id": str(conversation.id),
+                "message_id": str(msg.id),
+                "message": {
+                    "role": "assistant",
+                    "content": text,
+                    "created": created_iso,
+                },
+                "timestamp": created_iso,
+            },
+        )
+    except Exception:
+        logger.exception(
+            "publish_to_bridge failed conversation=%s user=%s",
+            conversation.id,
+            target.web_user_id,
+        )
+    return "Message sent successfully."
 
 
 def make_send_message_tool(
@@ -89,6 +134,15 @@ def make_send_message_tool(
         if target is None:
             return f"Error: invalid target_index={idx}. Valid indices: {sorted(by_index.keys())}."
 
+        if target.provider == SendTargetProvider.WEB_CHAT:
+            return _send_web_chat_message(
+                conversation=conversation_for_append,
+                target=target,
+                text=text,
+            )
+
+        if target.integration_account_id is None:
+            return "Error: integration account not configured for target."
         account = IntegrationAccount.objects.filter(id=target.integration_account_id).first()
         if account is None:
             return "Error: integration account not found."

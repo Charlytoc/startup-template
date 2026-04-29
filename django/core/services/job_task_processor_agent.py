@@ -10,13 +10,11 @@ from core.agent.tools.create_image_artifact import make_create_image_artifact_to
 from core.agent.tools.create_recurring_job import make_create_recurring_job_tool
 from core.agent.tools.create_text_artifact import make_create_text_artifact_tool
 from core.agent.tools.schedule_one_off_task import make_schedule_one_off_task_tool
-from core.agent.tools.send_chat_message import make_send_chat_message_tool
 from core.agent.tools.send_message import make_send_message_tool
 from core.integrations.actionables import (
     ARTIFACTS_CALL_CREATOR,
     ARTIFACTS_CREATE_IMAGE,
     ARTIFACTS_CREATE_TEXT,
-    SYSTEM_SEND_CHAT_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
 )
@@ -84,17 +82,7 @@ class JobTaskProcessorAgent:
 
         for act in actions:
             slug = act.actionable_slug
-            if slug == SYSTEM_SEND_CHAT_MESSAGE.slug:
-                if (
-                    conversation is not None
-                    and conversation.origin == Conversation.Origin.WEB
-                    and isinstance(channel, WebChatChannel)
-                ):
-                    _add(make_send_chat_message_tool(
-                        conversation=conversation,
-                        user_id=channel.user_id,
-                    ))
-            elif slug == TASKS_SCHEDULE_ONE_OFF.slug:
+            if slug == TASKS_SCHEDULE_ONE_OFF.slug:
                 _add(make_schedule_one_off_task_tool(job=job, channel=channel))
             elif slug == TASKS_CREATE_RECURRING_JOB.slug:
                 _add(make_create_recurring_job_tool(job=job, channel=channel))
@@ -219,8 +207,6 @@ class JobTaskProcessorAgent:
         """Name of the primary user-visible send tool for this run (matches tool registration)."""
         if conversation is None:
             return None
-        if conversation.origin == Conversation.Origin.WEB:
-            return "send_chat_message"
         if dm_targets:
             return "send_message"
         return None
@@ -275,19 +261,11 @@ class JobTaskProcessorAgent:
 
         tool_name = JobTaskProcessorAgent._user_facing_send_tool_name(conversation, dm_targets)
         if tool_name:
-            if tool_name == "send_message":
-                parts.append(
-                    "Anything the end user must read or hear on Telegram or Instagram must be sent through "
-                    "the **`send_message`** tool using the correct **`target_index`** from the list above. "
-                    "Plain assistant text without that tool is not delivered on those channels."
-                )
-            else:
-                parts.append(
-                    f"In **this** conversation, anything the end user must read or hear must be sent through "
-                    f"the **`{tool_name}`** tool (already scoped to this thread). Plain assistant text without "
-                    "that tool is not delivered to the user on this channel unless the instructions above say "
-                    "otherwise."
-                )
+            parts.append(
+                "Anything the end user must read or hear must be sent through the **`send_message`** "
+                "tool using the correct **`target_index`** from the list above. Plain assistant text "
+                "without that tool is not delivered to the user on this channel."
+            )
         else:
             parts.append(
                 "Use the send-message tool attached to this run for user-visible replies; plain assistant "

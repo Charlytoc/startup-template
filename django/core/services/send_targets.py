@@ -6,7 +6,11 @@ import logging
 import uuid
 from typing import NamedTuple
 
-from core.integrations.actionables import INSTAGRAM_SEND_MESSAGE, TELEGRAM_SEND_MESSAGE
+from core.integrations.actionables import (
+    INSTAGRAM_SEND_MESSAGE,
+    SYSTEM_SEND_MESSAGE,
+    TELEGRAM_SEND_MESSAGE,
+)
 from core.models import Conversation, IntegrationAccount, JobAssignment
 from core.schemas.integration_account import SenderApprovalStatus
 from core.schemas.send_target import (
@@ -85,6 +89,23 @@ def collect_resolved_send_targets(
 ) -> list[ResolvedSendTarget]:
     """Build the indexed target list for this run from explicit seeds (not a full sender scan)."""
     seeds: list[SendTargetSeed] = []
+    cfg = job.get_config()
+    if (
+        conversation is not None
+        and conversation.origin == Conversation.Origin.WEB
+        and any(a.actionable_slug == SYSTEM_SEND_MESSAGE.slug for a in cfg.actions)
+    ):
+        web_user_id = conversation.get_config().web_user_id
+        if web_user_id is not None:
+            return [
+                ResolvedSendTarget(
+                    target_index=0,
+                    target_role="This is the web chat user you are interacting with right now.",
+                    provider=SendTargetProvider.WEB_CHAT,
+                    web_user_id=web_user_id,
+                )
+            ]
+
     if (
         conversation is not None
         and conversation.origin == Conversation.Origin.INTEGRATION

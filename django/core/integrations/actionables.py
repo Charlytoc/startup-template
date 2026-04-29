@@ -54,13 +54,13 @@ TASKS_CREATE_RECURRING_JOB = Actionable(
 )
 
 
-SYSTEM_SEND_CHAT_MESSAGE = Actionable(
-    slug="system.send_chat_message",
+SYSTEM_SEND_MESSAGE = Actionable(
+    slug="system.send_message",
     provider="system",
-    name="Send web chat message",
+    name="Send message",
     description=(
-        "Deliver a message to the user via the in-app web chat UI. "
-        "The destination (user + conversation) is already bound; the agent only supplies the body."
+        "Deliver a message to the user via a system-managed channel such as in-app web chat. "
+        "The destination is already bound; the agent only supplies the body."
     ),
 )
 
@@ -94,7 +94,7 @@ ACTIONABLES: dict[str, Actionable] = {
         INSTAGRAM_SEND_MESSAGE,
         TASKS_SCHEDULE_ONE_OFF,
         TASKS_CREATE_RECURRING_JOB,
-        SYSTEM_SEND_CHAT_MESSAGE,
+        SYSTEM_SEND_MESSAGE,
         ARTIFACTS_CALL_CREATOR,
         ARTIFACTS_CREATE_TEXT,
         ARTIFACTS_CREATE_IMAGE,

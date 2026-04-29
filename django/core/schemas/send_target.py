@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SendTargetProvider(str, Enum):
+    WEB_CHAT = "web_chat"
     TELEGRAM = "telegram"
     INSTAGRAM = "instagram"
 
@@ -29,8 +30,9 @@ class SendTargetResolution(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: SendTargetProvider
-    integration_account_id: uuid.UUID
-    external_thread_id: str
+    integration_account_id: uuid.UUID | None = None
+    external_thread_id: str = ""
+    web_user_id: int | None = None
 
 
 class ResolvedSendTarget(BaseModel):
@@ -41,8 +43,9 @@ class ResolvedSendTarget(BaseModel):
     target_index: int = Field(ge=0)
     target_role: str
     provider: SendTargetProvider
-    integration_account_id: uuid.UUID
-    external_thread_id: str
+    integration_account_id: uuid.UUID | None = None
+    external_thread_id: str = ""
+    web_user_id: int | None = None
 
     def to_public(self) -> SendTargetPublic:
         return SendTargetPublic(

@@ -11,6 +11,7 @@ from core.integrations.actionables import (
     ACTIONABLES,
     ARTIFACTS_CALL_CREATOR,
     INSTAGRAM_SEND_MESSAGE,
+    SYSTEM_SEND_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
     TELEGRAM_SEND_MESSAGE,
@@ -132,6 +133,7 @@ def list_actionable_catalog_for_workspace(workspace: Workspace) -> list[dict[str
                 }
             )
     for a in (
+        ACTIONABLES[SYSTEM_SEND_MESSAGE.slug],
         ACTIONABLES[TASKS_SCHEDULE_ONE_OFF.slug],
         ACTIONABLES[TASKS_CREATE_RECURRING_JOB.slug],
         ACTIONABLES[ARTIFACTS_CALL_CREATOR.slug],

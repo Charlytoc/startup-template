@@ -1,12 +1,12 @@
 """Web chat entry point. Runs through the unified JobAssignment + Conversation pipeline.
 
 A message POSTed here requires a ``cyber_identity_id`` that is web-chat enabled (i.e. has a
-``system.send_chat_message`` JobAssignment). We:
+web-chat send-message JobAssignment). We:
 
 1. resolve or create the active web-chat ``Conversation`` for ``(workspace, identity, user)``,
 2. persist the user message,
 3. create a ``TaskExecution`` (event trigger) and enqueue :func:`core.tasks.task_execution.run_task_execution`
-   so the agent replies via the ``send_chat_message`` tool (which writes both the assistant
+   so the agent replies via the unified ``send_message`` tool (which writes both the assistant
    ``Message`` and the real-time bridge event).
 """
 
