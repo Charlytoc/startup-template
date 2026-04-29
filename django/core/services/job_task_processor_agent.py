@@ -5,19 +5,23 @@ from __future__ import annotations
 import uuid
 
 from core.agent.base import AgentToolConfig
+from core.agent.tools.call_artifact_creator import make_call_artifact_creator_tool
 from core.agent.tools.create_recurring_job import make_create_recurring_job_tool
+from core.agent.tools.create_text_artifact import make_create_text_artifact_tool
 from core.agent.tools.schedule_one_off_task import make_schedule_one_off_task_tool
 from core.agent.tools.send_chat_message import make_send_chat_message_tool
 from core.agent.tools.send_message import make_send_message_tool
 from core.integrations.actionables import (
+    ARTIFACTS_CALL_CREATOR,
+    ARTIFACTS_CREATE_TEXT,
     SYSTEM_SEND_CHAT_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
 )
 from core.integrations.event_types import INSTAGRAM_DM_MESSAGE, TELEGRAM_PRIVATE_MESSAGE
-from core.models import Conversation, CyberIdentity, IntegrationAccount, JobAssignment
+from core.models import Conversation, CyberIdentity, IntegrationAccount, JobAssignment, TaskExecution
 from core.schemas.channel import Channel, InstagramDmChannel, TelegramPrivateChannel, WebChatChannel
-from core.schemas.job_assignment import JobAssignmentEventTrigger
+from core.schemas.job_assignment import JobAssignmentAction, JobAssignmentEventTrigger
 from core.services.send_targets import collect_resolved_send_targets
 
 
@@ -29,6 +33,8 @@ class JobTaskProcessorAgent:
         *,
         job: JobAssignment,
         conversation: Conversation,
+        task_execution: TaskExecution | None = None,
+        actions_override: list[JobAssignmentAction] | None = None,
     ) -> list[AgentToolConfig]:
         """Build tool list for an agent run bound to a ``Conversation``.
 
@@ -41,6 +47,8 @@ class JobTaskProcessorAgent:
             job=job,
             conversation=conversation,
             channel=channel,
+            task_execution=task_execution,
+            actions_override=actions_override,
         )
 
     @staticmethod
@@ -49,8 +57,11 @@ class JobTaskProcessorAgent:
         job: JobAssignment,
         conversation: Conversation | None,
         channel: Channel | None,
+        task_execution: TaskExecution | None = None,
+        actions_override: list[JobAssignmentAction] | None = None,
     ) -> list[AgentToolConfig]:
         cfg_model = job.get_config()
+        actions = actions_override if actions_override is not None else cfg_model.actions
         tools: list[AgentToolConfig] = []
         seen_names: set[str] = set()
 
@@ -69,7 +80,7 @@ class JobTaskProcessorAgent:
                 )
             )
 
-        for act in cfg_model.actions:
+        for act in actions:
             slug = act.actionable_slug
             if slug == SYSTEM_SEND_CHAT_MESSAGE.slug:
                 if (
@@ -85,6 +96,10 @@ class JobTaskProcessorAgent:
                 _add(make_schedule_one_off_task_tool(job=job, channel=channel))
             elif slug == TASKS_CREATE_RECURRING_JOB.slug:
                 _add(make_create_recurring_job_tool(job=job, channel=channel))
+            elif slug == ARTIFACTS_CALL_CREATOR.slug:
+                _add(make_call_artifact_creator_tool(job=job, channel=channel))
+            elif slug == ARTIFACTS_CREATE_TEXT.slug and task_execution is not None:
+                _add(make_create_text_artifact_tool(task_execution=task_execution))
         return tools
 
     @staticmethod

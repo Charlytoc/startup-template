@@ -46,3 +46,38 @@ class CreateRecurringJobArgs(BaseModel):
         description="Standard 5-field UNIX cron expression (UTC). Example: '0 12 * * 1,3,5'.",
     )
     description: str = Field(default="", max_length=500)
+
+
+class CallArtifactCreatorArgs(BaseModel):
+    """Arguments for the ``call_artifact_creator`` agent tool."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=200)
+    instructions: str = Field(
+        ...,
+        min_length=1,
+        description="Instructions for the child artifact creator agent.",
+    )
+    in_minutes: int = Field(
+        default=0,
+        ge=0,
+        le=SCHEDULE_ONE_OFF_MAX_MINUTES,
+        description="How many minutes from now to run the artifact creator. Use 0 for now.",
+    )
+
+
+class CreateTextArtifactArgs(BaseModel):
+    """Arguments for the ``create_text_artifact`` agent tool."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(..., min_length=1)
+    label: str = Field(default="", max_length=200)
+    extension: str = Field(
+        default="txt",
+        min_length=1,
+        max_length=20,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$",
+        description="File-style extension for the text artifact, e.g. txt, md, html, json.",
+    )

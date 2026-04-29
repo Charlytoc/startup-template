@@ -368,6 +368,40 @@ export interface paths {
         patch: operations["core_routers_workspaces_update_job_assignment"];
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/artifacts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Workspace Artifacts */
+        get: operations["core_routers_workspace_artifacts_list_workspace_artifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/artifacts/{artifact_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Workspace Artifact */
+        get: operations["core_routers_workspace_artifacts_get_workspace_artifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/integrations/telegram/webhook/{webhook_path_token}/": {
         parameters: {
             query?: never;
@@ -959,6 +993,96 @@ export interface components {
             config?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** ArtifactIdentityOut */
+        ArtifactIdentityOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Type */
+            type: string;
+            /** Display Name */
+            display_name: string;
+        };
+        /** ArtifactIntegrationOut */
+        ArtifactIntegrationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Display Name */
+            display_name: string;
+            /** External Account Id */
+            external_account_id: string;
+        };
+        /** ArtifactMediaOut */
+        ArtifactMediaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Display Name */
+            display_name: string;
+            /** Mime Type */
+            mime_type: string;
+            /** Byte Size */
+            byte_size: number | null;
+            /** Public Url */
+            public_url: string | null;
+        };
+        /** ArtifactOut */
+        ArtifactOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Workspace Id */
+            workspace_id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            identity: components["schemas"]["ArtifactIdentityOut"] | null;
+            task_execution: components["schemas"]["ArtifactTaskExecutionOut"] | null;
+            media: components["schemas"]["ArtifactMediaOut"] | null;
+            integration_account: components["schemas"]["ArtifactIntegrationOut"] | null;
+            /**
+             * Created
+             * Format: date-time
+             */
+            created: string;
+            /**
+             * Modified
+             * Format: date-time
+             */
+            modified: string;
+        };
+        /** ArtifactTaskExecutionOut */
+        ArtifactTaskExecutionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Job Assignment Id */
+            job_assignment_id: string | null;
+            /** Job Role Name */
+            job_role_name: string;
         };
         /** TelegramConnectResponse */
         TelegramConnectResponse: {
@@ -2184,6 +2308,120 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspace_artifacts_list_workspace_artifacts: {
+        parameters: {
+            query?: {
+                identity_id?: string | null;
+                job_assignment_id?: string | null;
+                integration_account_id?: string | null;
+                kind?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactOut"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseSchema"];
+                };
+            };
+        };
+    };
+    core_routers_workspace_artifacts_get_workspace_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: number;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactOut"];
                 };
             };
             /** @description Unauthorized */

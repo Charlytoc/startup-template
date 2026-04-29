@@ -16,6 +16,7 @@ from core.models.agent_session_log import AgentSessionLog
 from core.schemas.agentic_chat import ExchangeMessage
 from core.schemas.channel import Channel, InstagramDmChannel, TelegramPrivateChannel, WebChatChannel
 from core.schemas.task_execution import (
+    ArtifactRef,
     IdentityConfigSnapshot,
     TaskExecutionError,
     TaskExecutionInputs,
@@ -140,9 +141,21 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             + "\n\nYou are executing a deferred task created earlier. Use the tools "
             "to complete the instructions below. When you are done, output a brief confirmation."
         )
+        if trigger_dict and trigger_dict.get("type") == "artifact_creator":
+            system_prompt += (
+                "\n\nThis run is an artifact creator task. Create durable artifacts that satisfy "
+                "the instructions. Prefer saving the useful output through the artifact tools; "
+                "do not treat plain final text as the saved artifact."
+            )
         loop_messages = [ExchangeMessage(role="user", content=inputs.task_instructions)]
 
-    tools = JobTaskProcessorAgent.build_tools_for_conversation(job=job, conversation=conversation)
+    actions_override = inputs.actions if inputs.actions else None
+    tools = JobTaskProcessorAgent.build_tools_for_conversation(
+        job=job,
+        conversation=conversation,
+        task_execution=task,
+        actions_override=actions_override,
+    )
     if not tools:
         return _fail(task, "no_tools_available_for_task")
 
@@ -197,6 +210,10 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         log.save()
 
         outputs = TaskExecutionOutputs(
+            artifacts=[
+                ArtifactRef(id=a.id, kind=a.kind, label=a.label)
+                for a in task.artifacts.all().order_by("created")
+            ],
             total_duration_ms=int(duration * 1000),
             agent_session_log=log.id,
             error=TaskExecutionError(message=summary.error) if summary.error else None,

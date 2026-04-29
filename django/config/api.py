@@ -3,7 +3,14 @@ from ninja import NinjaAPI, Schema
 from config import settings
 from ninja.errors import HttpError
 # Include routers
-from core.routers import agentic_chat_router, auth_router, integrations_instagram_router, integrations_telegram_router, workspaces_router
+from core.routers import (
+    agentic_chat_router,
+    auth_router,
+    integrations_instagram_router,
+    integrations_telegram_router,
+    workspace_artifacts_router,
+    workspaces_router,
+)
 
 class ErrorResponseSchema(Schema):
     error: str
@@ -25,5 +32,6 @@ def http_error(request, exc):
 api.add_router("/auth/", auth_router)
 api.add_router("/agentic-chat/", agentic_chat_router)
 api.add_router("/workspaces/", workspaces_router)
+api.add_router("/workspaces/", workspace_artifacts_router)
 api.add_router("/integrations/telegram/", integrations_telegram_router)
 api.add_router("/integrations/instagram/", integrations_instagram_router)

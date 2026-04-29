@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.conf import settings
 from django.core.files import File
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 import os
 from core.services.openai_service import OpenAIService
 
@@ -107,7 +108,7 @@ class UserAdmin(BaseUserAdmin):
                 '<img src="{}" style="max-width: 200px; max-height: 200px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />',
                 obj.profile_picture.url
             )
-        return format_html('<span style="color: #999;">No image uploaded</span>')
+        return mark_safe('<span style="color: #999;">No image uploaded</span>')
     
     profile_picture_preview.short_description = "Profile Picture Preview"
     

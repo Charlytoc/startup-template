@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -29,7 +29,6 @@ import {
 
 export default function WorkspacePage() {
   const router = useRouter();
-  const [sessionOk, setSessionOk] = useState(false);
   const [user] = useLocalStorage<AuthUser | null>({
     key: USER_KEY,
     defaultValue: null,
@@ -55,28 +54,25 @@ export default function WorkspacePage() {
     const { user: stored } = readStoredAuth();
     if (!stored) {
       router.replace("/chat");
-      return;
     }
-    setSessionOk(true);
   }, [router]);
 
   const orgId = selectedOrgId != null ? String(selectedOrgId) : null;
+  const displayUser = user ?? readStoredAuth().user;
 
   const { data: organizations, isPending: orgsPending } = useQuery({
     queryKey: ["my-organizations", token],
     queryFn: () => fetchMyOrganizations(token!),
-    enabled: Boolean(token) && sessionOk,
+    enabled: Boolean(token) && Boolean(displayUser),
     staleTime: 60_000,
   });
 
   const { data: workspaces, isPending: wsPending } = useQuery({
     queryKey: ["workspaces", token, orgId],
     queryFn: () => fetchWorkspaces(token!, orgId!),
-    enabled: Boolean(token) && sessionOk && orgId != null,
+    enabled: Boolean(token) && Boolean(displayUser) && orgId != null,
     staleTime: 30_000,
   });
-
-  const displayUser = user ?? readStoredAuth().user;
 
   const activeOrg = useMemo(() => {
     if (!organizations?.length || orgId == null) {
@@ -92,7 +88,7 @@ export default function WorkspacePage() {
     return workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
   }, [workspaces, selectedWorkspaceId]);
 
-  if (!sessionOk || !displayUser) {
+  if (!displayUser) {
     return (
       <Center style={{ flex: 1 }}>
         <Loader size="sm" />
@@ -169,6 +165,22 @@ export default function WorkspacePage() {
                         w="fit-content"
                       >
                         Manage identities
+                      </Button>
+                    </Stack>
+                  </Card>
+                  <Card withBorder radius="md" p="md">
+                    <Stack gap="xs">
+                      <Title order={4}>Artifacts</Title>
+                      <Text size="sm" c="dimmed">
+                        Browse durable outputs created by workspace agents and filter them by identity, job, or integration.
+                      </Text>
+                      <Button
+                        component={Link}
+                        href={`/workspaces/${activeWorkspace.id}/artifacts`}
+                        variant="light"
+                        w="fit-content"
+                      >
+                        View artifacts
                       </Button>
                     </Stack>
                   </Card>

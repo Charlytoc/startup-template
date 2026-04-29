@@ -54,6 +54,7 @@ class TaskExecution(TimeStampedModel):
         choices=Status.choices,
         default=Status.PENDING,
     )
+    name = models.CharField(max_length=200, blank=True)
     requires_approval = models.BooleanField(default=False)
 
     inputs = models.JSONField(

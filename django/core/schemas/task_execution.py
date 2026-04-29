@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.schemas.channel import Channel
+from core.schemas.job_assignment import JobAssignmentAction
 
 
 class IdentityConfigSnapshot(BaseModel):
@@ -47,6 +48,10 @@ class TaskExecutionInputs(BaseModel):
         default_factory=dict,
         description="Runtime variables resolved from triggers / templates.",
     )
+    actions: list[JobAssignmentAction] = Field(
+        default_factory=list,
+        description="Optional narrowed action set for this execution. Empty means inherit the job actions.",
+    )
 
 
 class ArtifactRef(BaseModel):
@@ -55,7 +60,7 @@ class ArtifactRef(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: UUID
-    kind: Literal["image", "video", "audio", "document", "text", "other"] = "other"
+    kind: Literal["image", "video", "audio", "document", "text", "external_resource"]
     label: str = ""
 
 

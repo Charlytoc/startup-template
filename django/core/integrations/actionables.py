@@ -65,6 +65,21 @@ SYSTEM_SEND_CHAT_MESSAGE = Actionable(
 )
 
 
+ARTIFACTS_CALL_CREATOR = Actionable(
+    slug="artifacts.call_creator",
+    provider="system",
+    name="Call artifact creator",
+    description="Delegate artifact creation to a child task execution with a focused toolset.",
+)
+
+ARTIFACTS_CREATE_TEXT = Actionable(
+    slug="artifacts.create_text",
+    provider="system",
+    name="Create text artifact",
+    description="Persist a text artifact on the current task execution.",
+)
+
+
 ACTIONABLES: dict[str, Actionable] = {
     a.slug: a
     for a in (
@@ -73,6 +88,8 @@ ACTIONABLES: dict[str, Actionable] = {
         TASKS_SCHEDULE_ONE_OFF,
         TASKS_CREATE_RECURRING_JOB,
         SYSTEM_SEND_CHAT_MESSAGE,
+        ARTIFACTS_CALL_CREATOR,
+        ARTIFACTS_CREATE_TEXT,
     )
 }
 

@@ -9,6 +9,7 @@ from core.models import TaskExecution
 class TaskExecutionAdmin(PrettyJSONAdminMixin, admin.ModelAdmin):
     list_display = (
         "id",
+        "name",
         "job_assignment",
         "workspace",
         "status",
@@ -23,7 +24,7 @@ class TaskExecutionAdmin(PrettyJSONAdminMixin, admin.ModelAdmin):
         "requires_approval",
         "workspace__organization",
     )
-    search_fields = ("id", "job_assignment__role_name", "workspace__name")
+    search_fields = ("id", "name", "job_assignment__role_name", "workspace__name")
     readonly_fields = ("id", "created", "modified", "agent_session_log_link")
     raw_id_fields = (
         "workspace",
