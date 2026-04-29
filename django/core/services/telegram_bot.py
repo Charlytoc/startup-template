@@ -91,6 +91,103 @@ def telegram_send_message(bot_token: str, chat_id: int | str, text: str) -> dict
     return result
 
 
+def _telegram_send_media(
+    *,
+    bot_token: str,
+    method: str,
+    chat_id: int | str,
+    file_url: str,
+    file_field: str,
+    caption: str | None,
+    timeout: int,
+) -> dict[str, Any]:
+    url = f"{TELEGRAM_API_BASE}/bot{bot_token}/{method}"
+    payload: dict[str, Any] = {"chat_id": chat_id, file_field: file_url}
+    if caption is not None and caption.strip():
+        payload["caption"] = caption.strip()[:1024]
+    response = requests.post(url, json=payload, timeout=timeout)
+    data = response.json()
+    if not data.get("ok"):
+        raise ValueError(data.get("description") or f"Telegram {method} failed")
+    result = data.get("result")
+    if not isinstance(result, dict):
+        raise ValueError(f"Telegram {method} returned no message result")
+    return result
+
+
+def telegram_send_photo(
+    bot_token: str,
+    chat_id: int | str,
+    photo_url: str,
+    *,
+    caption: str | None = None,
+) -> dict[str, Any]:
+    """Send a photo by HTTPS URL (Telegram fetches the file)."""
+    return _telegram_send_media(
+        bot_token=bot_token,
+        method="sendPhoto",
+        chat_id=chat_id,
+        file_url=photo_url,
+        file_field="photo",
+        caption=caption,
+        timeout=120,
+    )
+
+
+def telegram_send_video(
+    bot_token: str,
+    chat_id: int | str,
+    video_url: str,
+    *,
+    caption: str | None = None,
+) -> dict[str, Any]:
+    return _telegram_send_media(
+        bot_token=bot_token,
+        method="sendVideo",
+        chat_id=chat_id,
+        file_url=video_url,
+        file_field="video",
+        caption=caption,
+        timeout=120,
+    )
+
+
+def telegram_send_audio(
+    bot_token: str,
+    chat_id: int | str,
+    audio_url: str,
+    *,
+    caption: str | None = None,
+) -> dict[str, Any]:
+    return _telegram_send_media(
+        bot_token=bot_token,
+        method="sendAudio",
+        chat_id=chat_id,
+        file_url=audio_url,
+        file_field="audio",
+        caption=caption,
+        timeout=120,
+    )
+
+
+def telegram_send_document(
+    bot_token: str,
+    chat_id: int | str,
+    document_url: str,
+    *,
+    caption: str | None = None,
+) -> dict[str, Any]:
+    return _telegram_send_media(
+        bot_token=bot_token,
+        method="sendDocument",
+        chat_id=chat_id,
+        file_url=document_url,
+        file_field="document",
+        caption=caption,
+        timeout=120,
+    )
+
+
 def find_integration_by_webhook_path_token(webhook_path_token: str) -> IntegrationAccount | None:
     token = (webhook_path_token or "").strip().rstrip("/")
     if not token:

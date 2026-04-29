@@ -12,7 +12,14 @@ from core.schemas.send_target import ResolvedSendTarget, SendTargetProvider
 from core.services.conversations import append_assistant_message
 from core.services.instagram_service import get_access_token, get_ig_user_id, instagram_send_message
 from core.services.redis_publisher import publish_to_bridge
-from core.services.telegram_bot import get_bot_token, telegram_send_message
+from core.services.telegram_bot import (
+    get_bot_token,
+    telegram_send_audio,
+    telegram_send_document,
+    telegram_send_message,
+    telegram_send_photo,
+    telegram_send_video,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +103,45 @@ def _resolve_artifact_attachments(
     if missing:
         return [], f"Artifacts not found in this workspace: {', '.join(missing)}."
     return [_artifact_attachment_payload(by_id[aid]) for aid in parsed], None
+
+
+def _telegram_attachment_caption(att: dict[str, Any]) -> str | None:
+    label = str(att.get("label") or "").strip()
+    media = att.get("media")
+    name = ""
+    if isinstance(media, dict):
+        name = str(media.get("display_name") or "").strip()
+    return label or name or None
+
+
+def _send_telegram_attachments(
+    bot_token: str,
+    chat_id: int | str,
+    attachments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Send each attachment that has a public URL via the appropriate Telegram method."""
+    results: list[dict[str, Any]] = []
+    for att in attachments:
+        if not isinstance(att, dict):
+            continue
+        media = att.get("media")
+        if not isinstance(media, dict):
+            continue
+        url = media.get("public_url")
+        if not url or not isinstance(url, str) or not url.strip():
+            continue
+        url = url.strip()
+        mime = str(media.get("mime_type") or "").lower()
+        caption = _telegram_attachment_caption(att)
+        if mime.startswith("image/"):
+            results.append(telegram_send_photo(bot_token, chat_id, url, caption=caption))
+        elif mime.startswith("video/"):
+            results.append(telegram_send_video(bot_token, chat_id, url, caption=caption))
+        elif mime.startswith("audio/"):
+            results.append(telegram_send_audio(bot_token, chat_id, url, caption=caption))
+        else:
+            results.append(telegram_send_document(bot_token, chat_id, url, caption=caption))
+    return results
 
 
 def _send_web_chat_message(
@@ -182,8 +228,9 @@ def make_send_message_tool(
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Optional artifact ids to attach to this message. Use this when notifying "
-                        "the user about generated images, text artifacts, or other durable outputs."
+                        "Optional artifact ids to attach to this message. For web chat these appear "
+                        "as in-app attachments. For Telegram (and similar) each attachment with a "
+                        "public media URL is sent as photo/video/audio/document after the text message."
                     ),
                     "default": [],
                 },
@@ -233,16 +280,22 @@ def make_send_message_tool(
                 return "Error: Telegram bot token not configured."
             try:
                 sent = telegram_send_message(token, target.external_thread_id, text)
+                media_sent = _send_telegram_attachments(
+                    token, target.external_thread_id, attachments
+                )
             except ValueError as exc:
                 return f"Error: {exc}"
+            structured_out: dict[str, Any] = {
+                **(content_structured or {}),
+                "telegram_sent": sent,
+            }
+            if media_sent:
+                structured_out["telegram_attachment_sends"] = media_sent
             _append_if_same_thread(
                 conversation_for_append=conversation_for_append,
                 target=target,
                 text=text,
-                content_structured={
-                    **(content_structured or {}),
-                    "telegram_sent": sent,
-                },
+                content_structured=structured_out,
             )
             return "Message sent successfully."
 
