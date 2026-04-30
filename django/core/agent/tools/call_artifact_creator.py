@@ -40,7 +40,8 @@ def make_call_artifact_creator_tool(
             "task starts with text and image artifact tools enabled. If this parent job has Instagram "
             "publishing rights, the child will also receive `publish_external_resource`; use that path "
             "when the user asks to publish an Instagram post. After calling this, tell the user it may "
-            "take a bit; the parent job will be called again when the artifact creator finishes."
+            "take a bit; the child notifies them when it succeeds. The parent job is only run again "
+            "if the artifact creator fails."
         ),
         parameters={
             "type": "object",
@@ -137,8 +138,8 @@ def make_call_artifact_creator_tool(
             ).update(status=TaskExecution.Status.QUEUED)
             enqueue_task_execution(task.id)
             return (
-                f"Started artifact creator task {task.id}. It will call this parent job again "
-                "when it finishes so the user can be notified."
+                f"Started artifact creator task {task.id}. The child run will notify the user when "
+                "it succeeds; this parent job is only invoked again if that task fails."
             )
         return (
             f"Scheduled artifact creator task {task.id} to run at {scheduled_to.isoformat()} "

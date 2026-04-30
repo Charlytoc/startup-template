@@ -159,7 +159,9 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             )
             + "\n\nThis run is an artifact creator task. Create durable artifacts that satisfy "
             "the latest instructions. Prefer saving the useful output through the artifact tools; "
-            "do not treat plain final text as the saved artifact."
+            "do not treat plain final text as the saved artifact. When you succeed, brief the user "
+            "through `send_message` if this run lists outbound send targets (same as the main job); "
+            "only a failed run may trigger a separate parent notification."
         )
     elif is_event:
         loop_messages = prior_exchange_messages(conversation)
@@ -263,11 +265,10 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
         task.completed_at = datetime.now(timezone.utc)
         task.save(update_fields=["status", "outputs", "completed_at", "modified"])
 
-        if trigger_type == "artifact_creator":
+        if trigger_type == "artifact_creator" and summary.error:
             _enqueue_artifact_creator_callback(
                 task=task,
                 inputs=inputs,
-                status="failed" if summary.error else "completed",
                 error_message=summary.error,
             )
 
@@ -297,7 +298,6 @@ def run_task_execution(task_execution_id: str, celery_task_id: str | None = None
             _enqueue_artifact_creator_callback(
                 task=task,
                 inputs=inputs,
-                status="failed",
                 error_message=str(exc),
             )
         return {"status": "error", "error": str(exc)}
@@ -360,10 +360,9 @@ def _enqueue_artifact_creator_callback(
     *,
     task: TaskExecution,
     inputs: TaskExecutionInputs,
-    status: str,
     error_message: str | None = None,
 ) -> TaskExecution | None:
-    """Queue a parent/orchestrator run to notify the user after artifact creation finishes."""
+    """Queue a parent run when the artifact creator failed so the user can be notified."""
     if inputs.channel is None or inputs.parent_job_assignment is None:
         logger.info(
             "artifact_creator_callback skip missing_channel_or_parent task=%s",
@@ -386,8 +385,6 @@ def _enqueue_artifact_creator_callback(
     artifacts = _artifact_callback_payload(task)
     task_instructions = _artifact_callback_instructions(
         task=task,
-        status=status,
-        artifacts=artifacts,
         error_message=error_message,
     )
 
@@ -405,14 +402,14 @@ def _enqueue_artifact_creator_callback(
         trigger={
             "type": "artifact_creator_completed",
             "artifact_task_execution_id": str(task.id),
-            "status": status,
+            "status": "failed",
             "artifact_ids": [a["id"] for a in artifacts],
         },
         variables={
             "artifact_creator": {
                 "task_execution_id": str(task.id),
                 "name": task.name or "",
-                "status": status,
+                "status": "failed",
                 "error_message": error_message or "",
             },
             "artifacts": artifacts,
@@ -451,10 +448,9 @@ def _enqueue_artifact_creator_callback(
         transaction.on_commit(lambda: enqueue_task_execution(callback.id))
 
     logger.info(
-        "artifact_creator_callback queued task=%s callback=%s status=%s artifacts=%s",
+        "artifact_creator_callback queued task=%s callback=%s artifacts=%s",
         task.id,
         callback.id,
-        status,
         len(artifacts),
     )
     return callback
@@ -500,34 +496,8 @@ def _artifact_callback_payload(task: TaskExecution) -> list[dict[str, Any]]:
 def _artifact_callback_instructions(
     *,
     task: TaskExecution,
-    status: str,
-    artifacts: list[dict[str, Any]],
     error_message: str | None,
 ) -> str:
-    if status == "completed":
-        lines = [
-            "The background artifact creator finished successfully.",
-            f"Artifact task: {task.name or task.id}",
-            f"Created artifacts: {len(artifacts)}.",
-        ]
-        for artifact in artifacts:
-            label = artifact.get("label") or "(untitled)"
-            kind = artifact.get("kind") or "artifact"
-            url = ((artifact.get("media") or {}).get("public_url") or "").strip()
-            preview = str(artifact.get("text_preview") or "").strip()
-            detail = f"- {kind}: {label} (id: {artifact.get('id')})"
-            if url:
-                detail += f" URL: {url}"
-            elif preview:
-                detail += f" Preview: {preview}"
-            lines.append(detail)
-        lines.append(
-            "Send one concise message in the same language and tone as the conversation. "
-            "Say the artifact is ready and pass every created artifact id in the `artifact_ids` "
-            "argument of `send_message`. Do not write artifact:// links in the message text."
-        )
-        return "\n".join(lines)
-
     return "\n".join(
         [
             "The background artifact creator failed.",
