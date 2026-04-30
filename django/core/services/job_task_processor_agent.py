@@ -9,12 +9,14 @@ from core.agent.tools.call_artifact_creator import make_call_artifact_creator_to
 from core.agent.tools.create_image_artifact import make_create_image_artifact_tool
 from core.agent.tools.create_recurring_job import make_create_recurring_job_tool
 from core.agent.tools.create_text_artifact import make_create_text_artifact_tool
+from core.agent.tools.publish_external_resource import make_publish_external_resource_tool
 from core.agent.tools.schedule_one_off_task import make_schedule_one_off_task_tool
 from core.agent.tools.send_message import make_send_message_tool
 from core.integrations.actionables import (
     ARTIFACTS_CALL_CREATOR,
     ARTIFACTS_CREATE_IMAGE,
     ARTIFACTS_CREATE_TEXT,
+    INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE,
     TASKS_CREATE_RECURRING_JOB,
     TASKS_SCHEDULE_ONE_OFF,
 )
@@ -84,6 +86,19 @@ class JobTaskProcessorAgent:
                 )
             )
 
+        publish_actions = [
+            act
+            for act in actions
+            if act.actionable_slug == INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE.slug
+        ]
+        if publish_actions and task_execution is not None:
+            _add(
+                make_publish_external_resource_tool(
+                    task_execution=task_execution,
+                    actions=publish_actions,
+                )
+            )
+
         for act in actions:
             slug = act.actionable_slug
             if slug == TASKS_SCHEDULE_ONE_OFF.slug:
@@ -97,6 +112,31 @@ class JobTaskProcessorAgent:
             elif slug == ARTIFACTS_CREATE_IMAGE.slug and task_execution is not None:
                 _add(make_create_image_artifact_tool(task_execution=task_execution))
         return tools
+
+    @staticmethod
+    def _capability_prompt(actions: list[JobAssignmentAction]) -> str | None:
+        action_slugs = {a.actionable_slug for a in actions}
+        lines: list[str] = []
+        if ARTIFACTS_CALL_CREATOR.slug in action_slugs:
+            lines.append(
+                "- You can create durable assets by calling `call_artifact_creator`. Use it for "
+                "requests to generate images, captions, drafts, or publish-ready content."
+            )
+        if INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE.slug in action_slugs:
+            lines.append(
+                "- This job has Instagram publishing rights. If the user asks you to create or publish "
+                "an Instagram post, call `call_artifact_creator` and include explicit instructions for "
+                "the child task to create the required assets and call `publish_external_resource` with "
+                "`resource_type: \"instagram.post\"`."
+            )
+        if not lines:
+            return None
+        return (
+            "**Current runtime capabilities**\n"
+            "These capabilities are authoritative for this run, even if older job instructions mention "
+            "outdated tool names or say a capability is unavailable:\n"
+            + "\n".join(lines)
+        )
 
     @staticmethod
     def find_matching_jobs_for_telegram_private_message(
@@ -273,12 +313,18 @@ class JobTaskProcessorAgent:
                 "Do not guess thread or account ids; only the indices above are valid for this run."
             )
 
+        capability_prompt = JobTaskProcessorAgent._capability_prompt(actions)
+        if capability_prompt:
+            parts.append(capability_prompt)
+
         tool_name = JobTaskProcessorAgent._user_facing_send_tool_name(conversation, dm_targets)
         if tool_name:
             parts.append(
                 "Anything the end user must read or hear must be sent through the **`send_message`** "
                 "tool using the correct **`target_index`** from the list above. Plain assistant text "
-                "without that tool is not delivered to the user on this channel."
+                "without that tool is not delivered to the user on this channel. If older job "
+                "instructions refer to `send_chat_message`, treat that as obsolete: the current "
+                "tool name is `send_message`."
             )
         else:
             parts.append(
@@ -293,12 +339,13 @@ def _channel_for_conversation(conversation: Conversation) -> Channel | None:
     """Derive a :class:`Channel` from a ``Conversation``."""
     if conversation.origin == Conversation.Origin.WEB:
         cfg = conversation.get_config()
-        if cfg.web_user_id is None:
+        if cfg.web_user_id is None or cfg.job_assignment_id is None:
             return None
         return WebChatChannel(
             type="web_chat",
             user_id=cfg.web_user_id,
             cyber_identity_id=conversation.cyber_identity_id,
+            job_assignment_id=cfg.job_assignment_id,
         )
 
     account = conversation.integration_account

@@ -38,9 +38,10 @@ import {
 } from "@/lib/auth-storage";
 import { fetchWorkspaces } from "@/lib/my-workspaces";
 import {
-  fetchCyberIdentities,
-  type CyberIdentity,
-} from "@/lib/workspace-cyber-identities";
+  fetchJobAssignments,
+  fetchJobAssignment,
+  type JobAssignment,
+} from "@/lib/workspace-job-assignments";
 
 type ApiSchemas = components["schemas"];
 type AuthResponse = ApiSchemas["AuthResponse"];
@@ -50,7 +51,7 @@ type ApiError = ApiSchemas["ErrorResponseSchema"];
 
 type AgenticChatMessageRequest = {
   message: string;
-  cyber_identity_id: string;
+  job_assignment_id: string;
 };
 
 type AgenticChatMessageResponse = {
@@ -84,10 +85,10 @@ type AgenticChatClearResponse = {
 async function fetchAgenticChatHistory(
   token: string,
   organizationId: string,
-  cyberIdentityId: string,
+  jobAssignmentId: string,
 ): Promise<AgenticChatHistoryResponse> {
   const url = new URL(`${API_BASE_URL}/agentic-chat/history`);
-  url.searchParams.set("cyber_identity_id", cyberIdentityId);
+  url.searchParams.set("job_assignment_id", jobAssignmentId);
   const response = await fetch(url.toString(), {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -105,7 +106,7 @@ async function fetchAgenticChatHistory(
 async function clearAgenticConversation(
   token: string,
   organizationId: string,
-  cyberIdentityId: string,
+  jobAssignmentId: string,
 ): Promise<AgenticChatClearResponse> {
   const response = await fetch(`${API_BASE_URL}/agentic-chat/conversation/clear`, {
     method: "POST",
@@ -114,7 +115,7 @@ async function clearAgenticConversation(
       Authorization: `Bearer ${token}`,
       [ORGANIZATION_HEADER]: organizationId,
     },
-    body: JSON.stringify({ cyber_identity_id: cyberIdentityId }),
+    body: JSON.stringify({ job_assignment_id: jobAssignmentId }),
   });
   const data = (await response.json()) as AgenticChatClearResponse | AgenticChatErrorResponse | ApiError;
   if (!response.ok) {
@@ -243,7 +244,7 @@ export default function ChatPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const identityId = searchParams.get("identity");
+  const jobId = searchParams.get("job");
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -319,7 +320,7 @@ export default function ChatPage() {
       token: string;
       message: string;
       organizationId: string;
-      cyberIdentityId: string;
+      jobAssignmentId: string;
     }) => {
       const response = await fetch(`${API_BASE_URL}/agentic-chat/messages`, {
         method: "POST",
@@ -330,7 +331,7 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           message: payload.message,
-          cyber_identity_id: payload.cyberIdentityId,
+          job_assignment_id: payload.jobAssignmentId,
         } satisfies AgenticChatMessageRequest),
       });
       const data = (await response.json()) as
@@ -341,10 +342,11 @@ export default function ChatPage() {
         const err = data as AgenticChatErrorResponse | ApiError;
         const msg = err.error ?? response.statusText;
         const code = (err as AgenticChatErrorResponse).error_code;
-        if (code === "WEB_CHAT_NOT_ENABLED") {
-          throw new Error(
-            "This identity does not have web chat enabled yet. Go to Cyber identities and click 'Enable in chat'.",
-          );
+        if (code === "JOB_DISABLED") {
+          throw new Error("This job is disabled. Enable it on the job assignment page to send messages.");
+        }
+        if (code === "JOB_HAS_NO_IDENTITIES") {
+          throw new Error("This job has no cyber identity. Add one on the job assignment page.");
         }
         throw new Error(msg);
       }
@@ -358,7 +360,7 @@ export default function ChatPage() {
           role: "user",
           content: message,
           createdAt: new Date().toISOString(),
-        attachments: [],
+          attachments: [],
         },
       ]);
       setWaiting(true);
@@ -369,7 +371,7 @@ export default function ChatPage() {
           "agentic-chat-history",
           variables.token,
           variables.organizationId,
-          variables.cyberIdentityId,
+          variables.jobAssignmentId,
         ],
       });
     },
@@ -386,7 +388,7 @@ export default function ChatPage() {
     return picked ?? fromUser ?? null;
   }, [user, selectedOrgId]);
 
-  const historyEnabled = Boolean(user && token && activeOrganizationId && identityId);
+  const historyEnabled = Boolean(user && token && activeOrganizationId && jobId);
 
   const {
     data: chatHistory,
@@ -394,8 +396,8 @@ export default function ChatPage() {
     isError: historyError,
     error: historyErr,
   } = useQuery({
-    queryKey: ["agentic-chat-history", token, activeOrganizationId, identityId],
-    queryFn: () => fetchAgenticChatHistory(token!, activeOrganizationId!, identityId!),
+    queryKey: ["agentic-chat-history", token, activeOrganizationId, jobId],
+    queryFn: () => fetchAgenticChatHistory(token!, activeOrganizationId!, jobId!),
     enabled: historyEnabled,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -403,7 +405,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     setMessages([]);
-  }, [identityId]);
+  }, [jobId]);
 
   useEffect(() => {
     if (!chatHistory?.messages) return;
@@ -423,20 +425,20 @@ export default function ChatPage() {
     setStatus(`History: ${historyErr.message}`);
   }, [historyError, historyErr]);
 
-  const needsIdentityPicker = Boolean(user && token && activeOrganizationId && !identityId);
+  const needsJobPicker = Boolean(user && token && activeOrganizationId && !jobId);
 
   const { data: workspacesData } = useQuery({
     queryKey: ["workspaces", token, activeOrganizationId],
     queryFn: () => fetchWorkspaces(token!, activeOrganizationId!),
-    enabled: needsIdentityPicker,
+    enabled: needsJobPicker,
     staleTime: 30_000,
   });
 
-  const { data: chatEnabledIdentities, isPending: identitiesPending } = useQuery<
-    (CyberIdentity & { workspace_name: string })[]
+  const { data: chatEligibleJobs, isPending: jobsPickerPending } = useQuery<
+    (JobAssignment & { workspace_name: string })[]
   >({
     queryKey: [
-      "chat-enabled-identities",
+      "chat-eligible-jobs",
       token,
       activeOrganizationId,
       (workspacesData ?? []).map((w) => w.id).join(","),
@@ -445,19 +447,50 @@ export default function ChatPage() {
       const workspaces = workspacesData ?? [];
       const lists = await Promise.all(
         workspaces.map((ws) =>
-          fetchCyberIdentities(token!, activeOrganizationId!, ws.id)
+          fetchJobAssignments(token!, activeOrganizationId!, ws.id)
             .then((rows) =>
               rows
-                .filter((r) => r.is_active && r.web_chat_enabled)
-                .map((r) => ({ ...r, workspace_name: ws.name })),
+                .filter(
+                  (j) =>
+                    j.enabled &&
+                    Array.isArray(j.config.identities) &&
+                    j.config.identities.length > 0,
+                )
+                .map((j) => ({ ...j, workspace_name: ws.name })),
             )
             .catch(() => []),
         ),
       );
       return lists.flat();
     },
-    enabled: needsIdentityPicker && Array.isArray(workspacesData),
+    enabled: needsJobPicker && Array.isArray(workspacesData),
     staleTime: 15_000,
+  });
+
+  const workspaceIdForJobHeader =
+    chatArtifactWorkspaceId != null &&
+    !Number.isNaN(chatArtifactWorkspaceId) &&
+    chatArtifactWorkspaceId > 0
+      ? chatArtifactWorkspaceId
+      : null;
+
+  const { data: activeChatJob } = useQuery({
+    queryKey: [
+      "chat-header-job",
+      token,
+      activeOrganizationId,
+      workspaceIdForJobHeader,
+      jobId,
+    ],
+    queryFn: () =>
+      fetchJobAssignment(token!, activeOrganizationId!, workspaceIdForJobHeader!, jobId!),
+    enabled: Boolean(
+      token &&
+        activeOrganizationId &&
+        jobId &&
+        workspaceIdForJobHeader != null,
+    ),
+    staleTime: 60_000,
   });
 
   const canSend = useMemo(
@@ -466,27 +499,27 @@ export default function ChatPage() {
         user &&
           token &&
           activeOrganizationId != null &&
-          identityId &&
+          jobId &&
           input.trim().length > 0 &&
           !waiting &&
           !sendMessageMutation.isPending
       ),
-    [input, token, user, activeOrganizationId, identityId, waiting, sendMessageMutation.isPending]
+    [input, token, user, activeOrganizationId, jobId, waiting, sendMessageMutation.isPending]
   );
 
   const clearConversationMutation = useMutation({
     mutationFn: async () => {
-      if (!token || activeOrganizationId == null || !identityId) {
+      if (!token || activeOrganizationId == null || !jobId) {
         throw new Error("Missing session");
       }
-      return clearAgenticConversation(token, activeOrganizationId, identityId);
+      return clearAgenticConversation(token, activeOrganizationId, jobId);
     },
     onSuccess: (data) => {
       closeClearModal();
       setMessages([]);
       setStatus(data.message);
       void queryClient.invalidateQueries({
-        queryKey: ["agentic-chat-history", token, activeOrganizationId, identityId],
+        queryKey: ["agentic-chat-history", token, activeOrganizationId, jobId],
       });
     },
     onError: (err: Error) => {
@@ -551,7 +584,7 @@ export default function ChatPage() {
       !user ||
       !token ||
       activeOrganizationId == null ||
-      !identityId ||
+      !jobId ||
       !input.trim() ||
       waiting ||
       sendMessageMutation.isPending
@@ -564,7 +597,7 @@ export default function ChatPage() {
       token,
       message: content,
       organizationId: activeOrganizationId,
-      cyberIdentityId: identityId,
+      jobAssignmentId: jobId,
     });
   }
 
@@ -648,34 +681,33 @@ export default function ChatPage() {
     );
   }
 
-  if (!identityId) {
-    const manageHref =
+  if (!jobId) {
+    const jobsHref =
       selectedWorkspaceId != null
-        ? `/workspaces/${selectedWorkspaceId}/cyber-identities`
+        ? `/workspaces/${selectedWorkspaceId}/job-assignments`
         : "/workspace";
-    const rows = chatEnabledIdentities ?? [];
+    const rows = chatEligibleJobs ?? [];
     return (
       <Center style={{ flex: 1 }} p="xl">
         <Paper withBorder radius="md" p="xl" maw={560} w="100%">
           <Stack gap="md">
             <div>
-              <Title order={3}>Pick a cyber identity</Title>
+              <Title order={3}>Pick a job assignment</Title>
               <Text c="dimmed" size="sm" mt={4}>
-                The chat now runs against a specific identity. Pick one of the
-                chat-enabled identities below, or manage them from the cyber
-                identities page.
+                Web chat runs as a specific workspace job (instructions, tools, and persona). Choose
+                an enabled job that has at least one cyber identity, or create jobs from the job
+                assignments page.
               </Text>
             </div>
 
-            {identitiesPending ? (
+            {jobsPickerPending ? (
               <Center py="md">
                 <Loader size="sm" />
               </Center>
             ) : rows.length === 0 ? (
               <Text c="dimmed" size="sm">
-                You don&apos;t have any chat-enabled identities yet. Open the cyber
-                identities page and click <strong>Enable in chat</strong> on one
-                of them.
+                No eligible jobs found. Create a job assignment with a cyber identity and ensure it is
+                enabled.
               </Text>
             ) : (
               <Stack gap="xs">
@@ -686,17 +718,19 @@ export default function ChatPage() {
                     justify="space-between"
                     rightSection={<Badge variant="outline">{row.workspace_name}</Badge>}
                     onClick={() =>
-                      router.push(`/chat?identity=${row.id}&workspace=${row.workspace_id}`)
+                      router.push(`/chat?job=${encodeURIComponent(row.id)}&workspace=${row.workspace_id}`)
                     }
                   >
-                    {row.display_name}
+                    <Text size="sm" lineClamp={2} ta="left">
+                      {row.role_name}
+                    </Text>
                   </Button>
                 ))}
               </Stack>
             )}
 
-            <Button component={Link} href={manageHref} variant="default">
-              Manage cyber identities
+            <Button component={Link} href={jobsHref} variant="default">
+              Job assignments
             </Button>
           </Stack>
         </Paper>
@@ -726,7 +760,7 @@ export default function ChatPage() {
             </Avatar>
             <Box>
               <Text size="sm" fw={600} lh={1.2}>
-                AI Assistant
+                {activeChatJob?.role_name ?? "Web chat"}
               </Text>
               <Text size="xs" c={status === "connected" || status.startsWith("Joined") ? "teal" : "dimmed"}>
                 {status.startsWith("Joined") ? "● Online" : status === "connected" ? "● Online" : "○ " + status}
@@ -739,19 +773,21 @@ export default function ChatPage() {
               variant="light"
               color="gray"
               onClick={openClearModal}
-              disabled={!token || activeOrganizationId == null || clearConversationMutation.isPending}
+              disabled={
+                !token || activeOrganizationId == null || !jobId || clearConversationMutation.isPending
+              }
             >
               Clear conversation
             </Button>
-            <Badge variant="light" color="violet" title={identityId}>
-              Identity: {identityId.slice(0, 8)}…
+            <Badge variant="light" color="violet" title={jobId}>
+              Job: {activeChatJob?.role_name?.trim() || `${jobId.slice(0, 8)}…`}
             </Badge>
             <ActionIcon
               size="sm"
               variant="subtle"
               onClick={() => router.replace("/chat")}
-              aria-label="Clear identity"
-              title="Clear identity context"
+              aria-label="Leave chat job"
+              title="Pick another job"
             >
               ✕
             </ActionIcon>

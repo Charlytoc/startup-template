@@ -1,9 +1,9 @@
 """Web chat entry point. Runs through the unified JobAssignment + Conversation pipeline.
 
-A message POSTed here requires a ``cyber_identity_id`` that is web-chat enabled (i.e. has a
-web-chat send-message JobAssignment). We:
+A message POSTed here requires a ``job_assignment_id`` for an enabled workspace job with at least
+one cyber identity. We:
 
-1. resolve or create the active web-chat ``Conversation`` for ``(workspace, identity, user)``,
+1. resolve or create the active web-chat ``Conversation`` for ``(workspace, job, primary identity, user)``,
 2. persist the user message,
 3. create a ``TaskExecution`` (event trigger) and enqueue :func:`core.tasks.task_execution.run_task_execution`
    so the agent replies via the unified ``send_message`` tool (which writes both the assistant
@@ -13,6 +13,7 @@ web-chat send-message JobAssignment). We:
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -20,7 +21,7 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.security import django_auth
 
-from core.models import CyberIdentity, Message, WorkspaceMember
+from core.models import CyberIdentity, JobAssignment, Message, WorkspaceMember
 from core.services.auth import ApiKeyAuth, auth_service
 from core.services.chat_clear_commands import CLEAR_CONTEXT_REPLY
 from core.services.conversations import (
@@ -30,7 +31,6 @@ from core.services.conversations import (
     get_or_create_active_web_conversation,
 )
 from core.schemas.channel import WebChatChannel
-from core.services.job_assignment_defaults import find_web_chat_job_for_identity
 from core.services.task_execution_runner import (
     WEB_CHAT_EVENT_SLUG,
     create_queued_event_task_execution,
@@ -42,7 +42,7 @@ router = Router(tags=["AgenticChat"])
 
 class AgenticChatMessageRequest(Schema):
     message: str
-    cyber_identity_id: uuid.UUID
+    job_assignment_id: uuid.UUID
 
 
 class AgenticChatMessageResponse(Schema):
@@ -71,13 +71,85 @@ class AgenticChatHistoryResponse(Schema):
 
 
 class AgenticChatClearRequest(Schema):
-    cyber_identity_id: uuid.UUID
+    job_assignment_id: uuid.UUID
 
 
 class AgenticChatClearResponse(Schema):
     status: str
     had_active_conversation: bool
     message: str
+
+
+@dataclass(frozen=True)
+class _WebChatJobContext:
+    job: JobAssignment
+    primary_identity: CyberIdentity
+
+
+def _resolve_web_chat_job_context(
+    *, user, job_assignment_id: uuid.UUID
+) -> tuple[_WebChatJobContext | None, AgenticChatErrorResponse | None, int | None]:
+    """Return ``(ctx, None, None)`` on success, or ``(None, error, http_status)`` on failure."""
+    job = JobAssignment.objects.select_related("workspace").filter(id=job_assignment_id).first()
+    if job is None:
+        return (
+            None,
+            AgenticChatErrorResponse(
+                error="Job assignment not found.", error_code="JOB_ASSIGNMENT_NOT_FOUND"
+            ),
+            404,
+        )
+
+    member = WorkspaceMember.objects.filter(
+        user=user,
+        workspace=job.workspace,
+        status=WorkspaceMember.Status.ACTIVE,
+    ).first()
+    if member is None:
+        raise HttpError(403, "You are not an active member of this workspace.")
+
+    if not job.enabled:
+        return (
+            None,
+            AgenticChatErrorResponse(
+                error="This job assignment is disabled.", error_code="JOB_DISABLED"
+            ),
+            400,
+        )
+
+    cfg = job.get_config()
+    if not cfg.identities:
+        return (
+            None,
+            AgenticChatErrorResponse(
+                error="This job has no cyber identities; add one to use web chat.",
+                error_code="JOB_HAS_NO_IDENTITIES",
+            ),
+            400,
+        )
+
+    primary_id = cfg.identities[0].id
+    identity = CyberIdentity.objects.filter(id=primary_id, workspace=job.workspace).first()
+    if identity is None:
+        return (
+            None,
+            AgenticChatErrorResponse(
+                error="Primary cyber identity for this job was not found.",
+                error_code="CYBER_IDENTITY_NOT_FOUND",
+            ),
+            404,
+        )
+
+    if not identity.is_active:
+        return (
+            None,
+            AgenticChatErrorResponse(
+                error="This cyber identity is inactive.", error_code="CYBER_IDENTITY_INACTIVE"
+            ),
+            400,
+        )
+
+    return (_WebChatJobContext(job=job, primary_identity=identity), None, None)
 
 
 def _message_display_text(message: Message) -> str:
@@ -113,41 +185,19 @@ def health(request):
     },
     auth=[ApiKeyAuth(), django_auth],
 )
-def get_conversation_history(request, cyber_identity_id: uuid.UUID, limit: int = 200):
-    """Return messages for the active web-chat thread (workspace + identity + current user)."""
+def get_conversation_history(request, job_assignment_id: uuid.UUID, limit: int = 200):
+    """Return messages for the active web-chat thread for this job and the current user."""
     user = auth_service.get_user_from_request(request)
-
-    identity = CyberIdentity.objects.select_related("workspace").filter(
-        id=cyber_identity_id
-    ).first()
-    if identity is None:
-        return 404, AgenticChatErrorResponse(
-            error="Cyber identity not found.", error_code="CYBER_IDENTITY_NOT_FOUND"
-        )
-
-    member = WorkspaceMember.objects.filter(
-        user=user,
-        workspace=identity.workspace,
-        status=WorkspaceMember.Status.ACTIVE,
-    ).first()
-    if member is None:
-        raise HttpError(403, "You are not an active member of this workspace.")
-
-    if not identity.is_active:
-        return 400, AgenticChatErrorResponse(
-            error="This cyber identity is inactive.", error_code="CYBER_IDENTITY_INACTIVE"
-        )
-
-    if find_web_chat_job_for_identity(identity) is None:
-        return 400, AgenticChatErrorResponse(
-            error="Web chat is not enabled for this cyber identity.",
-            error_code="WEB_CHAT_NOT_ENABLED",
-        )
+    ctx, err, status = _resolve_web_chat_job_context(user=user, job_assignment_id=job_assignment_id)
+    if ctx is None:
+        assert err is not None and status is not None
+        return status, err
 
     conversation = find_active_web_conversation(
-        workspace=identity.workspace,
-        cyber_identity=identity,
+        workspace=ctx.job.workspace,
+        cyber_identity=ctx.primary_identity,
         web_user_id=user.id,
+        job_assignment_id=ctx.job.id,
     )
     if conversation is None:
         return 200, AgenticChatHistoryResponse(conversation_id=None, messages=[])
@@ -186,38 +236,18 @@ def get_conversation_history(request, cyber_identity_id: uuid.UUID, limit: int =
 def clear_conversation(request, data: AgenticChatClearRequest):
     """Archive the active web-chat thread so the next message starts fresh (no agent run)."""
     user = auth_service.get_user_from_request(request)
-
-    identity = CyberIdentity.objects.select_related("workspace").filter(
-        id=data.cyber_identity_id
-    ).first()
-    if identity is None:
-        return 404, AgenticChatErrorResponse(
-            error="Cyber identity not found.", error_code="CYBER_IDENTITY_NOT_FOUND"
-        )
-
-    member = WorkspaceMember.objects.filter(
-        user=user,
-        workspace=identity.workspace,
-        status=WorkspaceMember.Status.ACTIVE,
-    ).first()
-    if member is None:
-        raise HttpError(403, "You are not an active member of this workspace.")
-
-    if not identity.is_active:
-        return 400, AgenticChatErrorResponse(
-            error="This cyber identity is inactive.", error_code="CYBER_IDENTITY_INACTIVE"
-        )
-
-    if find_web_chat_job_for_identity(identity) is None:
-        return 400, AgenticChatErrorResponse(
-            error="Web chat is not enabled for this cyber identity.",
-            error_code="WEB_CHAT_NOT_ENABLED",
-        )
+    ctx, err, status = _resolve_web_chat_job_context(
+        user=user, job_assignment_id=data.job_assignment_id
+    )
+    if ctx is None:
+        assert err is not None and status is not None
+        return status, err
 
     convo = find_active_web_conversation(
-        workspace=identity.workspace,
-        cyber_identity=identity,
+        workspace=ctx.job.workspace,
+        cyber_identity=ctx.primary_identity,
         web_user_id=user.id,
+        job_assignment_id=ctx.job.id,
     )
     had = convo is not None
     if convo is not None:
@@ -247,39 +277,21 @@ def send_message(request, data: AgenticChatMessageRequest):
         )
 
     user = auth_service.get_user_from_request(request)
+    ctx, err, status = _resolve_web_chat_job_context(
+        user=user, job_assignment_id=data.job_assignment_id
+    )
+    if ctx is None:
+        assert err is not None and status is not None
+        return status, err
 
-    identity = CyberIdentity.objects.select_related("workspace").filter(
-        id=data.cyber_identity_id
-    ).first()
-    if identity is None:
-        return 404, AgenticChatErrorResponse(
-            error="Cyber identity not found.", error_code="CYBER_IDENTITY_NOT_FOUND"
-        )
-
-    member = WorkspaceMember.objects.filter(
-        user=user,
-        workspace=identity.workspace,
-        status=WorkspaceMember.Status.ACTIVE,
-    ).first()
-    if member is None:
-        raise HttpError(403, "You are not an active member of this workspace.")
-
-    if not identity.is_active:
-        return 400, AgenticChatErrorResponse(
-            error="This cyber identity is inactive.", error_code="CYBER_IDENTITY_INACTIVE"
-        )
-
-    job = find_web_chat_job_for_identity(identity)
-    if job is None:
-        return 400, AgenticChatErrorResponse(
-            error="Web chat is not enabled for this cyber identity.",
-            error_code="WEB_CHAT_NOT_ENABLED",
-        )
+    job = ctx.job
+    identity = ctx.primary_identity
 
     conversation = get_or_create_active_web_conversation(
-        workspace=identity.workspace,
+        workspace=job.workspace,
         cyber_identity=identity,
         web_user_id=user.id,
+        job_assignment_id=job.id,
     )
     msg = append_user_message(conversation, content_text=text)
 
@@ -287,6 +299,7 @@ def send_message(request, data: AgenticChatMessageRequest):
         type="web_chat",
         user_id=user.id,
         cyber_identity_id=identity.id,
+        job_assignment_id=job.id,
     )
     instructions = text if text else "Web chat inbound message (no text)."
     task_ex = create_queued_event_task_execution(

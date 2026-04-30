@@ -10,7 +10,11 @@ from django.utils import timezone
 from pydantic import ValidationError
 
 from core.agent.base import AgentTool, AgentToolConfig
-from core.integrations.actionables import ARTIFACTS_CREATE_IMAGE, ARTIFACTS_CREATE_TEXT
+from core.integrations.actionables import (
+    ARTIFACTS_CREATE_IMAGE,
+    ARTIFACTS_CREATE_TEXT,
+    INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE,
+)
 from core.models import JobAssignment, TaskExecution
 from core.schemas.agent_tools import CallArtifactCreatorArgs, SCHEDULE_ONE_OFF_MAX_MINUTES
 from core.schemas.channel import Channel
@@ -32,10 +36,11 @@ def make_call_artifact_creator_tool(
         name="call_artifact_creator",
         description=(
             "Create a child artifact-creator task. Use this when the user asks to create durable "
-            "content such as a note, caption, draft, image, or future media asset. The child task "
-            "starts with text and image artifact tools enabled; future publishing tools can be "
-            "added to the child action set. After calling this, tell the user it may take a bit; "
-            "the parent job will be called again when the artifact creator finishes."
+            "content such as a note, caption, draft, image, post, or future media asset. The child "
+            "task starts with text and image artifact tools enabled. If this parent job has Instagram "
+            "publishing rights, the child will also receive `publish_external_resource`; use that path "
+            "when the user asks to publish an Instagram post. After calling this, tell the user it may "
+            "take a bit; the parent job will be called again when the artifact creator finishes."
         ),
         parameters={
             "type": "object",
@@ -79,6 +84,11 @@ def make_call_artifact_creator_tool(
         if cfg_model.identities:
             first = cfg_model.identities[0]
             identity_snapshot = IdentityConfigSnapshot(identity=first.id, config=first.config)
+        publish_actions = [
+            action
+            for action in cfg_model.actions
+            if action.actionable_slug == INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE.slug
+        ]
 
         scheduled_to = None if args.in_minutes == 0 else timezone.now() + timedelta(minutes=args.in_minutes)
         inputs = TaskExecutionInputs(
@@ -95,7 +105,8 @@ def make_call_artifact_creator_tool(
                 JobAssignmentAction(
                     actionable_slug=ARTIFACTS_CREATE_IMAGE.slug,
                     integration_account_id=None,
-                )
+                ),
+                *publish_actions,
             ],
         )
 

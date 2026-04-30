@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,7 +16,8 @@ class ConversationConfig(BaseModel):
     messages can be routed unambiguously (e.g. Telegram: ``chat_id`` + ``from.id``).
 
     For web-chat conversations (``origin == "web"``) there is no external provider; instead
-    ``web_user_id`` identifies the app user that owns the conversation.
+    ``web_user_id`` identifies the app user that owns the conversation, and ``job_assignment_id``
+    scopes the thread to a specific workspace job.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -31,6 +33,10 @@ class ConversationConfig(BaseModel):
     web_user_id: int | None = Field(
         default=None,
         description="Our app user id when origin='web'.",
+    )
+    job_assignment_id: UUID | None = Field(
+        default=None,
+        description="Workspace job this web thread is tied to (required when origin='web').",
     )
     extra: dict[str, Any] = Field(
         default_factory=dict,

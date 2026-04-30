@@ -350,6 +350,7 @@ def _resolve_conversation_for_task(
             workspace=job.workspace,
             cyber_identity=cyber,
             web_user_id=channel.user_id,
+            job_assignment_id=channel.job_assignment_id,
         )
 
     return None

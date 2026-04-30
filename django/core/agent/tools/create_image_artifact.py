@@ -32,7 +32,8 @@ def make_create_image_artifact_tool(*, task_execution: TaskExecution) -> AgentTo
         name="create_image_artifact",
         description=(
             "Generate one image with OpenAI and save it as a durable media-backed artifact. "
-            f"The only image model available is {IMAGE_GENERATION_MODEL}."
+            f"The only image model available is {IMAGE_GENERATION_MODEL}. "
+            "If the image will be published as an Instagram post, use output_format `jpeg`."
         ),
         parameters={
             "type": "object",

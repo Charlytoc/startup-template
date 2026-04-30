@@ -32,6 +32,13 @@ INSTAGRAM_SEND_MESSAGE = Actionable(
     description="Send a text direct message from a connected Instagram Business account to a conversation thread the agent already knows.",
 )
 
+INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE = Actionable(
+    slug="instagram.publish_external_resource",
+    provider="instagram",
+    name="Publish Instagram post",
+    description="Publish a generated artifact as an Instagram feed post and save the provider resource as an artifact.",
+)
+
 
 TASKS_SCHEDULE_ONE_OFF = Actionable(
     slug="tasks.schedule_one_off",
@@ -92,6 +99,7 @@ ACTIONABLES: dict[str, Actionable] = {
     for a in (
         TELEGRAM_SEND_MESSAGE,
         INSTAGRAM_SEND_MESSAGE,
+        INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE,
         TASKS_SCHEDULE_ONE_OFF,
         TASKS_CREATE_RECURRING_JOB,
         SYSTEM_SEND_MESSAGE,

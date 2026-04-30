@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -96,3 +97,26 @@ class CreateImageArtifactArgs(BaseModel):
     quality: Literal["auto", "low", "medium", "high"] = "auto"
     background: Literal["auto", "transparent", "opaque"] = "auto"
     output_format: Literal["png", "jpeg", "webp"] = "png"
+
+
+class PublishExternalResourceAttachmentArgs(BaseModel):
+    """An existing artifact to use when publishing an external resource."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_id: UUID
+    type: Literal["image", "video", "audio", "document", "text"]
+    description: str = Field(..., min_length=1, max_length=500)
+
+
+class PublishExternalResourceArgs(BaseModel):
+    """Arguments for the ``publish_external_resource`` agent tool."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_index: int = Field(..., ge=0)
+    resource_type: Literal["instagram.post"]
+    caption: str = Field(default="", max_length=2200)
+    attachments: list[PublishExternalResourceAttachmentArgs] = Field(
+        ..., min_length=1, max_length=10
+    )

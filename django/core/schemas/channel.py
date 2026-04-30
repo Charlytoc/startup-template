@@ -19,13 +19,14 @@ class TelegramPrivateChannel(BaseModel):
 
 
 class WebChatChannel(BaseModel):
-    """A pre-bound in-app web chat session (user + cyber identity)."""
+    """A pre-bound in-app web chat session (user + persona + job thread)."""
 
     model_config = ConfigDict(extra="allow")
 
     type: Literal["web_chat"]
     user_id: int
     cyber_identity_id: UUID
+    job_assignment_id: UUID
 
 
 class InstagramDmChannel(BaseModel):

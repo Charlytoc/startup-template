@@ -10,6 +10,7 @@ from ninja.errors import HttpError
 from core.integrations.actionables import (
     ACTIONABLES,
     ARTIFACTS_CALL_CREATOR,
+    INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE,
     INSTAGRAM_SEND_MESSAGE,
     SYSTEM_SEND_MESSAGE,
     TASKS_CREATE_RECURRING_JOB,
@@ -122,6 +123,17 @@ def list_actionable_catalog_for_workspace(workspace: Workspace) -> list[dict[str
             )
         elif acc.provider == IntegrationAccount.Provider.INSTAGRAM:
             a = ACTIONABLES[INSTAGRAM_SEND_MESSAGE.slug]
+            out.append(
+                {
+                    "slug": a.slug,
+                    "name": a.name,
+                    "description": a.description,
+                    "provider": a.provider,
+                    "integration_account_id": str(acc.id),
+                    "integration": _account_row(acc),
+                }
+            )
+            a = ACTIONABLES[INSTAGRAM_PUBLISH_EXTERNAL_RESOURCE.slug]
             out.append(
                 {
                     "slug": a.slug,

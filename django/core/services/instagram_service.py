@@ -47,6 +47,7 @@ _OAUTH_STATE_PREFIX = "ig_oauth_state:"
 INSTAGRAM_OAUTH_SCOPES = [
     "instagram_business_basic",
     "instagram_business_manage_messages",
+    "instagram_business_content_publish",
 ]
 
 
@@ -240,6 +241,167 @@ def instagram_send_message(
     if "error" in data:
         raise ValueError(data["error"].get("message", "Instagram sendMessage failed"))
     return data
+
+
+# ---------------------------------------------------------------------------
+# Graph API: content publishing
+# ---------------------------------------------------------------------------
+
+
+def _instagram_graph_error_message(data: dict[str, Any], fallback: str) -> str:
+    error = data.get("error")
+    if not isinstance(error, dict):
+        return fallback
+    message = str(error.get("message") or fallback)
+    code = error.get("code")
+    subcode = error.get("error_subcode")
+    details = []
+    if code is not None:
+        details.append(f"code={code}")
+    if subcode is not None:
+        details.append(f"subcode={subcode}")
+    if details:
+        return f"{message} ({', '.join(details)})"
+    return message
+
+
+def instagram_create_image_media_container(
+    *,
+    access_token: str,
+    ig_user_id: str,
+    image_url: str,
+    caption: str = "",
+) -> dict[str, Any]:
+    uid = str(ig_user_id or "").strip()
+    url = str(image_url or "").strip()
+    if not access_token or not uid:
+        raise ValueError("Instagram token or ig_user_id not configured")
+    if not url:
+        raise ValueError("image_url is required")
+    payload = {
+        "image_url": url,
+        "media_type": "IMAGE",
+        "access_token": access_token,
+    }
+    if caption.strip():
+        payload["caption"] = caption.strip()
+    endpoint = f"{INSTAGRAM_GRAPH_BASE}/{INSTAGRAM_GRAPH_API_VERSION}/{uid}/media"
+    logger.info(
+        "instagram media container request ig_user_id=%s media_type=IMAGE "
+        "caption_len=%s image_url=%s endpoint=%s",
+        uid,
+        len(caption.strip()),
+        url,
+        endpoint,
+    )
+    resp = requests.post(
+        endpoint,
+        data=payload,
+        timeout=60,
+    )
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        logger.warning(
+            "instagram media container invalid_json status=%s body_preview=%r",
+            resp.status_code,
+            resp.text[:1000],
+        )
+        raise ValueError("Instagram media container returned invalid JSON") from exc
+    if resp.status_code >= 400:
+        logger.warning(
+            "instagram media container failed status=%s image_url=%s response=%s",
+            resp.status_code,
+            url,
+            data,
+        )
+    else:
+        logger.info(
+            "instagram media container response status=%s container_id=%s image_url=%s",
+            resp.status_code,
+            data.get("id"),
+            url,
+        )
+    if "error" in data:
+        raise ValueError(_instagram_graph_error_message(data, "Instagram media container failed"))
+    if not data.get("id"):
+        raise ValueError("Instagram media container returned no id")
+    return data
+
+
+def instagram_publish_media_container(
+    *,
+    access_token: str,
+    ig_user_id: str,
+    creation_id: str,
+) -> dict[str, Any]:
+    uid = str(ig_user_id or "").strip()
+    cid = str(creation_id or "").strip()
+    if not access_token or not uid:
+        raise ValueError("Instagram token or ig_user_id not configured")
+    if not cid:
+        raise ValueError("creation_id is required")
+    endpoint = f"{INSTAGRAM_GRAPH_BASE}/{INSTAGRAM_GRAPH_API_VERSION}/{uid}/media_publish"
+    logger.info(
+        "instagram media publish request ig_user_id=%s creation_id=%s endpoint=%s",
+        uid,
+        cid,
+        endpoint,
+    )
+    resp = requests.post(
+        endpoint,
+        data={"creation_id": cid, "access_token": access_token},
+        timeout=60,
+    )
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        logger.warning(
+            "instagram media publish invalid_json status=%s body_preview=%r",
+            resp.status_code,
+            resp.text[:1000],
+        )
+        raise ValueError("Instagram media publish returned invalid JSON") from exc
+    if resp.status_code >= 400:
+        logger.warning(
+            "instagram media publish failed status=%s creation_id=%s response=%s",
+            resp.status_code,
+            cid,
+            data,
+        )
+    else:
+        logger.info(
+            "instagram media publish response status=%s published_id=%s creation_id=%s",
+            resp.status_code,
+            data.get("id"),
+            cid,
+        )
+    if "error" in data:
+        raise ValueError(_instagram_graph_error_message(data, "Instagram media publish failed"))
+    if not data.get("id"):
+        raise ValueError("Instagram media publish returned no id")
+    return data
+
+
+def instagram_publish_image_post(
+    *,
+    access_token: str,
+    ig_user_id: str,
+    image_url: str,
+    caption: str = "",
+) -> dict[str, Any]:
+    container = instagram_create_image_media_container(
+        access_token=access_token,
+        ig_user_id=ig_user_id,
+        image_url=image_url,
+        caption=caption,
+    )
+    published = instagram_publish_media_container(
+        access_token=access_token,
+        ig_user_id=ig_user_id,
+        creation_id=str(container["id"]),
+    )
+    return {"container": container, "published": published}
 
 
 # ---------------------------------------------------------------------------
@@ -1038,6 +1200,11 @@ class InstagramIntegrationService:
     instagram_get_long_lived_token = staticmethod(instagram_get_long_lived_token)
     instagram_get_user_info = staticmethod(instagram_get_user_info)
     instagram_send_message = staticmethod(instagram_send_message)
+    instagram_create_image_media_container = staticmethod(
+        instagram_create_image_media_container
+    )
+    instagram_publish_media_container = staticmethod(instagram_publish_media_container)
+    instagram_publish_image_post = staticmethod(instagram_publish_image_post)
     instagram_enable_webhook_subscriptions = staticmethod(
         instagram_enable_webhook_subscriptions
     )

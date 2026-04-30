@@ -124,6 +124,10 @@ class Conversation(TimeStampedModel):
                 raise ValidationError(
                     {"config": "web_user_id is required when origin='web'."}
                 )
+            if cfg.job_assignment_id is None:
+                raise ValidationError(
+                    {"config": "job_assignment_id is required when origin='web'."}
+                )
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         self.full_clean()

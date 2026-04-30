@@ -305,6 +305,24 @@ export default function JobAssignmentDetailPage() {
             </div>
             {job ? (
               <Group gap="sm">
+                <Button
+                  size="xs"
+                  variant="light"
+                  component={Link}
+                  href={`/chat?job=${encodeURIComponent(jobId)}&workspace=${workspaceId}`}
+                  disabled={
+                    !job.enabled || !(job.config.identities && job.config.identities.length > 0)
+                  }
+                  title={
+                    !job.enabled
+                      ? "Enable this job to use web chat"
+                      : !(job.config.identities && job.config.identities.length > 0)
+                        ? "Add a cyber identity to this job to use web chat"
+                        : "Open web chat for this job"
+                  }
+                >
+                  Web chat
+                </Button>
                 <Text size="sm" c="dimmed">
                   Enabled
                 </Text>

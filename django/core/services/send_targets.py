@@ -8,7 +8,6 @@ from typing import NamedTuple
 
 from core.integrations.actionables import (
     INSTAGRAM_SEND_MESSAGE,
-    SYSTEM_SEND_MESSAGE,
     TELEGRAM_SEND_MESSAGE,
 )
 from core.models import Conversation, IntegrationAccount, JobAssignment
@@ -93,11 +92,7 @@ def collect_resolved_send_targets(
     """Build the indexed target list for this run from explicit seeds (not a full sender scan)."""
     seeds: list[SendTargetSeed] = []
     active_actions = actions if actions is not None else job.get_config().actions
-    if (
-        conversation is not None
-        and conversation.origin == Conversation.Origin.WEB
-        and any(a.actionable_slug == SYSTEM_SEND_MESSAGE.slug for a in active_actions)
-    ):
+    if conversation is not None and conversation.origin == Conversation.Origin.WEB:
         web_user_id = conversation.get_config().web_user_id
         if web_user_id is not None:
             return [

@@ -30,6 +30,7 @@ function help() {
   echo "  migrate [app migration] Run Django migrations"
   echo "  shell [cmd ...]   Open a shell in the django container (or run a one-off command)"
   echo "  web               Start frontend natively (npm run dev)"
+  echo "  tunnel [name] [url] Run Cloudflare tunnel (defaults: coworkers http://localhost:9000)"
   echo "  psql              Connect to PostgreSQL database"
   echo ""
   echo "Examples:"
@@ -149,6 +150,17 @@ function web() {
   NEXT_PUBLIC_API_BASE_URL="http://localhost:${DJANGO_PORT:-8000}/api" \
   NEXT_PUBLIC_REALTIME_URL="http://localhost:${REALTIME_PORT:-3001}" \
   npm run dev -- --port "$port"
+}
+
+function tunnel() {
+  if ! command -v cloudflared >/dev/null 2>&1; then
+    echo "cloudflared is not installed or not available in PATH" >&2
+    return 1
+  fi
+
+  local tunnel_name="${1:-coworkers}"
+  local tunnel_url="${2:-http://localhost:9000}"
+  cloudflared tunnel run --url "$tunnel_url" "$tunnel_name"
 }
 
 function down() {

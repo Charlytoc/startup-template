@@ -47,8 +47,10 @@ def find_active_web_conversation(
     workspace: Workspace,
     cyber_identity: CyberIdentity,
     web_user_id: int,
+    job_assignment_id: UUID,
 ) -> Conversation | None:
-    """Return the most recent ``ACTIVE`` web-chat conversation for this (workspace, identity, user)."""
+    """Return the most recent ``ACTIVE`` web-chat conversation for this job thread."""
+    jid = str(job_assignment_id)
     return (
         Conversation.objects.filter(
             workspace=workspace,
@@ -56,6 +58,7 @@ def find_active_web_conversation(
             cyber_identity=cyber_identity,
             status=Conversation.Status.ACTIVE,
             config__web_user_id=web_user_id,
+            config__job_assignment_id=jid,
         )
         .order_by("-last_interaction_at", "-created")
         .first()
@@ -100,17 +103,19 @@ def get_or_create_active_web_conversation(
     workspace: Workspace,
     cyber_identity: CyberIdentity,
     web_user_id: int,
+    job_assignment_id: UUID,
 ) -> Conversation:
-    """Return the active web-chat conversation for ``(workspace, identity, user)``, creating one if needed."""
+    """Return the active web-chat conversation for this job and user, creating one if needed."""
     existing = find_active_web_conversation(
         workspace=workspace,
         cyber_identity=cyber_identity,
         web_user_id=web_user_id,
+        job_assignment_id=job_assignment_id,
     )
     if existing is not None:
         return existing
 
-    cfg = ConversationConfig(web_user_id=web_user_id)
+    cfg = ConversationConfig(web_user_id=web_user_id, job_assignment_id=job_assignment_id)
     with transaction.atomic():
         convo = Conversation(
             workspace=workspace,
@@ -122,8 +127,12 @@ def get_or_create_active_web_conversation(
         convo.set_config(cfg)
         convo.save()
     logger.info(
-        "conversations: created web conversation=%s workspace=%s identity=%s user=%s",
-        convo.id, workspace.id, cyber_identity.id, web_user_id,
+        "conversations: created web conversation=%s workspace=%s identity=%s user=%s job=%s",
+        convo.id,
+        workspace.id,
+        cyber_identity.id,
+        web_user_id,
+        job_assignment_id,
     )
     return convo
 
